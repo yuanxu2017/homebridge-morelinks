@@ -1,6 +1,5 @@
 {
   "_from": "homebridge-morelinks",
-  "_id": "homebridge-morelinks@0.0.2",
   "_inBundle": false,
   "_integrity": "9209fcb8b62aff9c1cbe222936b09f1638d0504b",
   "_location": "/homebridge-morelinks",
@@ -22,11 +21,7 @@
   "_shasum": "",
   "_spec": "homebridge-morelinks",
   "_where": "",
-  "author": {
-    "name": "",
-    "email": "",
-    "url": ""
-  },
+  "author": "",
   "bugs": {
     "url": "https://github.com/yuanxu2017/homebridge-morelinks/issues"
   },
@@ -58,5 +53,5 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "version": "0.0.2"
+  "version": "0.0.3"
 }
