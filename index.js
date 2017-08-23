@@ -7,7 +7,7 @@ module.exports = function(homebridge)
 {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
-    homebridge.registerAccessory("homebridge-control4", "Control4", HttpAccessory);
+    homebridge.registerAccessory("homebridge-morelinks", "morelinks", HttpAccessory);
 }
 
 function HttpAccessory(log, config)
