@@ -1,0 +1,153 @@
+{
+  "Curtain": {
+    "switchon": 0,
+    "switchoff": 1,
+    "switchstop": [
+      0,
+      1
+    ],
+    "position":4
+  },
+  "Light": {
+    "switchon": 0,
+    "switchoff": 0,
+    "brightnessup": 1,
+    "brightnessdown": 2,
+    "brightnessnum": 3,
+    "brightnessmax": 3,
+    "brightnessmin": 3,
+    "colorrandom": 4,
+    "colornum": 4
+  },
+  "Dimmer": {
+    "switchon": 0,
+    "switchoff": 0,
+    "brightnessup": 1,
+    "brightnessdown": 2,
+    "brightnessnum": 3,
+    "brightnessmax": 3,
+    "brightnessmin": 3,
+    "colorrandom": 4,
+    "colornum": 4
+  },
+  "IrController": {},
+  "Outlet": {
+    "switchon": 0,
+    "switchoff": 0
+  },
+  "Switch": {},
+  "Panel": {},
+  "TV": {},
+  "Fan": {
+    "switchon": 0,
+    "switchoff": 0,
+    "fanspeedup": 1,
+    "fanspeeddown": 1,
+    "fanspeedmax": 1,
+    "fanspeedmin": 1,
+    "fanspeednum": 1
+  },
+  "RemoteController": {},
+  "AC": {
+    "switchon": 0,
+    "switchoff": 0,
+    "mode":1,
+    "temperatureup": 2,
+    "temperaturedown": 3,
+    "temperaturemax": 4,
+    "temperaturemin": 4,
+    "temperaturenum": 4,
+    "currenttempnum": 8,
+    "fanspeedup": 5,
+    "fanspeeddown": 5,
+    "fanspeedmax": 5,
+    "fanspeedmin": 5,
+    "fanspeedswitch": 5,
+    "fanspeednum": 5,
+    "swing_modehorizon": 6,
+    "swing_modehorizonoff": 6,
+    "swing_modevertical": 7,
+    "swing_modeverticaloff": 7,
+    "swing_modeauto": [
+      6,
+      7
+    ],
+    "swing_modeon": [
+      6,
+      7
+    ],
+    "swing_modeoff": [
+      6,
+      7
+    ]
+  },
+  "AirPurifier": {},
+  "Scene": {},
+  "CleanBot": {},
+  "Projector": {
+    "switchon": 0,
+    "switchoff": 0,
+    "channelnext": 1,
+    "channelprev": 1,
+    "channelnum": 1
+  },
+  "Dehumidifier": {
+    "switchon": 0,
+    "switchoff": 0,
+    "humidityup": 1,
+    "humiditydown": 2,
+    "humiditynum": 3,
+    "humiditymax": 3,
+    "humiditymin": 3
+  },
+  "Thermostat": {
+    "switchon": 0,
+    "switchoff": 0,
+    "temperatureup": 3,
+    "temperaturedown": 3,
+    "temperaturemax": 3,
+    "temperaturemin": 3,
+    "temperaturenum": 3,
+    "fanspeedup": 1,
+    "fanspeeddown": 1,
+    "fanspeedmax": 1,
+    "fanspeedmin": 1,
+    "fanspeedswitch": 1,
+    "fanspeednum": 1,
+    "currenttempnum": 4
+  },
+  "Humidifier": {
+    "switchon": 0,
+    "switchoff": 0,
+    "humidityup": 1,
+    "humiditydown": 2,
+    "humiditynum": 3,
+    "humiditymax": 3,
+    "humiditymin": 3
+  },
+  "Door": {
+    "switchon": 0,
+    "switchoff": 0
+  },
+  "Lock": {
+    "switchon": 0,
+    "switchoff": 0
+  },
+  "FloorHeater": {
+    "switchon": 0,
+    "switchoff": 0,
+    "temperatureup": 1,
+    "temperaturedown": 2,
+    "temperaturemax": 3,
+    "temperaturemin": 3,
+    "temperaturenum": 3,
+    "currenttempnum": 4
+  },
+  "Refrigerator": {},
+  "WaterHeater": {},
+  "LampblackMachine": {},
+  "WashingMachine": {},
+  "GasStove": {},
+  "HeatingFurnace": {},
+  "WineCabinet": {}
+}
