@@ -1,6 +1,7 @@
 var http = require('http');
 var request = require("request");
 var pollingtoevent = require('polling-to-event');
+var deviceType = require("./DeviceType.json");
 var Accessory, Service, Characteristic, UUIDGen;
 
 module.exports = function(homebridge) {
@@ -13,7 +14,7 @@ module.exports = function(homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
     UUIDGen = homebridge.hap.uuid;
-    console.log(Service);
+    // console.log(Accessory,Service,Characteristic,UUIDGen);
     // For platform plugin to be considered as dynamic platform plugin,
     // registerPlatform(pluginName, platformName, constructor, dynamic), dynamic must be true
     homebridge.registerPlatform("homebridge-morelinks", "morelinks", SamplePlatform, true);
@@ -24,7 +25,7 @@ module.exports = function(homebridge) {
 // config may be null
 // api may be null if launched from old homebridge version
 function SamplePlatform(log, config, api) {
-    log("morelinksplatform Init");
+    log("MoreLinks Platform Init");
     var platform = this;
     this.log = log;
     this.config = config;
@@ -222,1110 +223,229 @@ SamplePlatform.prototype.removeAccessory = function() {
 
 function HttpAccessory(log, config)
 {
+    this.index = 0;
     this.log = log;
+    this.log('http Index:',this.index);
+    this.index++;
 
-    // url info
-    this.service                = config["service"] || "Switch";
-    this.base_url               = config["base_url"];
-    this.enable_status          = config["has_on_state"] || "yes"
-    this.enable_power_control   = config["has_power_control"] || "yes";
-    this.enable_level           = config["has_level_control"] || "no";
-    this.invert_contact         = config["invert_contact"] || "no";
-    this.include_video          = config["include_video"] || "yes";
+    // Accessory Information
+    this.service               = undefined;
+    this.serviceName           = config["service"]          || "Switch";
+    this.manufacturer          = config["manufacturer"]     || "Unknown";
+    this.model                 = config["model"]            || "Unknown";
+    this.serial                = config["serial"]           || "Unknown";
+    this.refresh_interval      = config["refresh_interval"] || 300;
+    this.http_method           = config["http_method"] 	  	|| "GET";
+    this.username              = config["username"] 	    || "";
+    this.password              = config["password"]         || "";
+    this.sendimmediately       = config["sendimmediately"]  || "";
+    this.base_url              = config["base_url"];
+    this.name                  = config["name"];
+    this.request_power_url     = "";
+    this.request_brightness_url= "";
+    this.request_fanspeed_url  = "";
+    this.request_thermostat_url= "";
+    this.request_lockstatus_url= "";
+    this.request_garagedoor_url= "";
+    this.request_temperature_url= "";
+    this.request_mode_url       = "";
+    this.request_currenttemp_url= "";
+    this.request_curtainstatus_url_open = "";
+    this.request_curtainstatus_url_close = "";
+    this.request_curtainposition_url = "";
+    this.set_power_url         = "";
+    this.set_brightness_url    = "";
+    this.set_fanspeed_url      = "";
+    this.set_thermostat_url    = "";
+    this.set_lockstatus_url    = "";
+    this.set_garagedoor_url    = "";
+    this.set_temperature_url   = "";
+    this.set_curtainstatus_url_open = "";
+    this.set_curtainstatus_url_close = "";
+    this.set_mode_url          = "";
+    this.switch                = "";
+    this.switchon              = "";
+    this.switchstop            = "";
+    this.brightnessmin         = "";
+    this.colornum              = "";
+    this.fanspeednum           = "";
+    this.modecool              = "";
+    this.modeheat              = "";
+    this.modedry               = "";
+    this.modefan               = "";
+    this.modeauto              = "";
+    this.temperaturenum        = "";
+    this.fanspeednum           = "";
+    this.swing_modehorizon     = "";
+    this.swing_modehorizonoff  = "";
+    this.swing_modevertical    = "";
+    this.swing_modeverticaloff = "";
 
-    if( this.service == "Security" || this.service == "Motion" || this.service == "Doorbell" )
-        this.enable_power_control = "no";
+    this.getfanspeedlever    = 0;
+    this.getpowerstatus      = false;
+    this.getbrightnesslever  = 0;
+    this.gettemperaturelever = 0;
+    this.getmodelever        = 0;
+    this.getcurtainlever     = 50;
+    this.getlockstatus       = false;
+    this.getgaragedoorstatus = false;
+    this.gettemperature      = 16;
+    this.setfanspeedlever    = 0;
+    this.setpowerstatus      = false;
+    this.setbrightnesslever  = 0;
+    this.settemperaturelever = 16;
+    this.setmodelever        = 0;
+    this.setcurtainlever     = 50;
+    this.setlockstatus       = false;
+    this.setgaragedoorstatus = false;
+    this.settemperature      = 16;
 
-    if( this.enable_power_control == "yes" )
-    {
-        if( this.service == "Garage Door" )
-        {
-            this.on_url               = this.base_url + "/close";
-            this.on_body              = config["open_body"];
-            this.off_url              = this.base_url + "/open";
-            this.off_body             = config["close_body"];
-        }
-        else if( this.service == "Lock" )
-        {
-            this.on_url               = this.base_url + "/lock";
-            this.on_body              = config["open_body"];
-            this.off_url              = this.base_url + "/unlock";
-            this.off_body             = config["close_body"];
-        }
-        else
-        {
-            this.on_url                 = this.base_url + "/on";
-            this.on_body                = config["on_body"];
-            this.off_url                = this.base_url + "/off";
-            this.off_body               = config["off_body"];
-        }
-    }
+    this.enableSet = true;
 
-    if( this.service == "Thermostat" )
-    {
-        this.set_mode_url          = this.base_url + "/set/%m";
-        this.get_mode_url          = this.base_url + "/get";
-        this.get_status_url        = this.base_url + "/get";
-        this.set_target_heat_url   = this.base_url + "/set/%c";
-        this.set_target_cool_url   = this.base_url + "/set/%c";
-        this.get_target_heat_url   = this.base_url + "/get";
-        this.get_target_cool_url   = this.base_url + "/get";
-        this.get_temperature_url   = this.base_url + "/get";
-
-        this.cool_string = config["cool_string"] || "Cool";
-        this.heat_string = config["heat_string"] || "Heat";
-        this.off_string = config["off_string"] || "Off";
-        this.auto_string = config["auto_string"] || "Auto";
-    }
 
     var that = this;
 
-    const requestHandler = (request, response) => {
-        //console.log(request.url)
-
-        var parts = request.url.split("/")
-        var prop = parts[1]
-        var value = parts[2]
-
-        //console.log("Received update to property("+prop+") with value("+value+")")
-
-        if( prop == 1000 )
-        {
-            var binaryState = parseInt(value.replace(/\D/g,""));
-            that.state = binaryState > 0;
-            that.log(that.service, "received power",that.status_url, "state is currently", binaryState);
-
-            // switch used to easily add additonal services
-            that.enableSet = false;
-            switch (that.service) {
-                case "Switch":
-                    if (that.switchService ) {
-                        that.switchService .getCharacteristic(Characteristic.On)
-                            .setValue(that.state);
-                    }
-                    break;
-                case "Light":
-                case "Dimmer":
-                    if (that.lightbulbService) {
-                        that.lightbulbService.getCharacteristic(Characteristic.On)
-                            .setValue(that.state||that.currentlevel>0);
-                    }
-                    break;
-                case "Door":
-                    if (that.doorService) {
-                        that.doorService.getCharacteristic(Characteristic.CurrentPosition)
-                            .setValue(that.state?0:100);
-                        that.doorService.getCharacteristic(Characteristic.TargetPosition)
-                            .setValue(that.state?0:100);
-                        that.doorService.getCharacteristic(Characteristic.PositionState)
-                            .setValue(2);
-                    }
-                    break;
-                case "Window":
-                    if (that.windowService) {
-                        that.windowService.getCharacteristic(Characteristic.CurrentPosition)
-                            .setValue(that.state?0:100);
-                        that.windowService.getCharacteristic(Characteristic.TargetPosition)
-                            .setValue(that.state?0:100);
-                        that.windowService.getCharacteristic(Characteristic.PositionState)
-                            .setValue(2);
-                    }
-                    break;
-                case "Garage Door":
-                    if( that.garageService ) {
-                        that.targetGarageDoorState = that.state?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN;
-                        that.garageService.getCharacteristic(Characteristic.CurrentDoorState)
-                            .setValue(that.targetGarageDoorState);
-                        that.garageService.getCharacteristic(Characteristic.TargetDoorState)
-                            .setValue(that.targetGarageDoorState);
-                    }
-                    break;
-                case "Lock":
-                    if( that.lockService ) {
-                        that.lockService.getCharacteristic(Characteristic.LockCurrentState)
-                            .setValue(!that.state?Characteristic.LockCurrentState.SECURED:Characteristic.LockCurrentState.UNSECURED);
-                        that.lockService.getCharacteristic(Characteristic.LockTargetState)
-                            .setValue(!that.state?Characteristic.LockTargetState.SECURED:Characteristic.LockTargetState.UNSECURED);
-                    }
-                    break;
-                case "Contact":
-                    if( that.contactService ) {
-                        that.contactService.getCharacteristic(Characteristic.ContactSensorState)
-                            .setValue(that.state?Characteristic.ContactSensorState.CONTACT_DETECTED:Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);
-                    }
-                    break;
-                case "Doorbell":
-                    if( that.doorbellService ) {
-                        var toCheck = true;
-                        if( that.invert_contact == "yes" ) {
-                            toCheck = false;
-                        }
-                        if( that.state == toCheck && that.state != that.lastState ) {
-                            that.lastSent = !that.lastSent;
-
-                            that.doorbellService.getCharacteristic(Characteristic.ProgrammableSwitchEvent)
-                                .setValue(that.lastSent?1:0);
-                        }
-                        that.lastState = that.state;
-                    }
-                    break;
-                case "Motion":
-                    if( that.motionService ) {
-                        that.motionService.getCharacteristic(Characteristic.MotionDetected).setValue(!that.state);
-                    }
-                    break;
-                case "Fan":
-                    if( that.fanService ) {
-                        that.fanService.getCharacteristic(Characteristic.On).
-                        setValue(that.state);
-                    }
-                    break;
-                case "Security":
-                    that.httpRequest(that.status_url, "", "GET", that.username, that.password, that.sendimmediately, function(error, response, body)
-                    {
-                        if (error)
-                        {
-                            that.log('HTTP get power function failed: %s', error.message);
-                            return;
-                        }
-                        else
-                        {
-                            var binaryState = parseInt(body.replace(/\D/g,""));
-                            that.state = binaryState > 0;
-                            if( that.securityService && binaryState < 10 )
-                            {
-                                if( binaryState < 5 ) {
-                                    that.secCurState = binaryState;
-                                    that.secTarState = binaryState;
-                                } else {
-                                    that.secTarState = 0;
-                                }
-                                that.enableSet = false;
-                                that.securityService.getCharacteristic(Characteristic.SecuritySystemCurrentState).
-                                setValue(that.secCurState);
-                                that.securityService.getCharacteristic(Characteristic.SecuritySystemTargetState).
-                                setValue(that.secTarState);
-                                that.enableSet = true;
-                            }
-                        }
-                    });
-                    break;
-            }
-            that.enableSet = true;
-        }
-        else if( prop == 1001 )
-        {
-            that.currentlevel = parseInt(value);
-            that.state = that.currentlevel > 0;
-
-            that.enableSet = false;
-            switch (that.service) {
-                case "Light":
-                case "Dimmer":
-                    if (that.lightbulbService) {
-                        that.log(that.service, "received brightness",that.brightnesslvl_url, "level is currently", that.currentlevel);
-                        that.lightbulbService.getCharacteristic(Characteristic.Brightness)
-                            .setValue(that.currentlevel);
-                        that.lightbulbService.getCharacteristic(Characteristic.On)
-                            .setValue(that.state);
-                    }
-                    break;
-                case "Fan":
-                    if( that.fanService ) {
-                        that.log(that.service, "received fan level",that.brightnesslvl_url, "level is currently", that.currentlevel);
-                        that.fanService.getCharacteristic(Characteristic.RotationSpeed)
-                            .setValue(that.currentlevel*25);
-                    }
-                    break;
-                case "Security":
-                    that.httpRequest(that.status_url, "", "GET", that.username, that.password, that.sendimmediately, function(error, response, body) {
-                        if (error) {
-                            that.log('HTTP get power function failed: %s', error.message);
-                            return;
-                        } else {
-                            var binaryState = parseInt(body.replace(/\D/g,""));
-                            that.state = binaryState > 0;
-                            if( that.securityService && binaryState < 10 ) {
-                                if( binaryState < 5 ) {
-                                    that.secCurState = binaryState;
-                                    that.secTarState = binaryState;
-                                } else {
-                                    that.secTarState = 0;
-                                }
-                                that.enableSet = false;
-                                that.securityService.getCharacteristic(Characteristic.SecuritySystemCurrentState).
-                                setValue(that.secCurState);
-                                that.securityService.getCharacteristic(Characteristic.SecuritySystemTargetState).
-                                setValue(that.secTarState);
-                                that.enableSet = true;
-                            }
-                        }});
-                    break;
-            }
-            that.enableSet = true;
-        }
-        else if( prop == 1107 ) // HVAC Status
-        {
-            var state = Characteristic.TargetHeatingCoolingState.OFF;
-            if( value.includes(that.cool_string) )
-            {
-                state = Characteristic.TargetHeatingCoolingState.COOL;
-            }
-            else if( value.includes(that.heat_string) )
-            {
-                state = Characteristic.TargetHeatingCoolingState.HEAT;
-            }
-            else if( value.includes(that.auto_string) )
-            {
-                state = Characteristic.TargetHeatingCoolingState.AUTO;
-            }
-
-            if( state >= 0 && state <= 2 )
-            {
-                that.thermStatus = state;
-                that.log(that.service, "received hvac status",that.get_status_url, "hvac status is currently", value);
-                that.thermostatService.getCharacteristic(Characteristic.CurrentHeatingCoolingState).setValue(state);
-            }
-            else
-            {
-                that.log(that.service, "received invalid hvac status",state,"from data",value);
-            }
-        }
-        else if( prop == 1104 ) // HVAC Mode
-        {
-            that.enableSetTemp = false;
-            that.enableSetState = false;
-            var state = Characteristic.TargetHeatingCoolingState.OFF;
-            if( value == that.cool_string )
-            {
-                state = Characteristic.TargetHeatingCoolingState.COOL;
-            }
-            else if( value == that.heat_string )
-            {
-                state = Characteristic.TargetHeatingCoolingState.HEAT;
-            }
-            else if( value == that.auto_string )
-            {
-                state = Characteristic.TargetHeatingCoolingState.AUTO;
-            }
-
-            that.log(that.service, "received hvac mode",that.get_mode_url, "hvac mode is currently", state, "from value", value);
-            that.thermTarState = state;
-            that.thermostatService.getCharacteristic(Characteristic.TargetHeatingCoolingState).setValue(that.thermTarState);
-
-            if( that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO)
-            {
-                //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                {
-                    var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                    if( coolDiff < 0 )
-                        coolDiff = coolDiff*-1;
-
-                    var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                    if( heatDiff < 0 )
-                        heatDiff = heatDiff*-1;
-
-                    if( coolDiff < heatDiff )
-                        state = Characteristic.TargetHeatingCoolingState.COOL;
-                    else
-                        state = Characteristic.TargetHeatingCoolingState.HEAT;
-                }
-                else
-                {
-                    state = Characteristic.TargetHeatingCoolingState.OFF;
-                }
-            }
-
-            if( state == Characteristic.TargetHeatingCoolingState.COOL && that.thermCoolSet != -100 )
-            {
-                if( that.thermCoolSet >= 10 && that.thermCoolSet <= 38 )
-                    that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermCoolSet);
-                else
-                    that.log(that.service, "Cool setpoint is outside of valid range.  Cannot set target temperature: ",that.thermCoolSet);
-            }
-            if( state == Characteristic.TargetHeatingCoolingState.HEAT && that.thermHeatSet != -100 )
-            {
-                if( that.thermHeatSet >= 10 && that.thermHeatSet <= 38 )
-                    that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermHeatSet);
-                else
-                    that.log(that.service, "Heat setpoint is outside of valid range.  Cannot set target temperature: ",that.thermHeatSet);
-            }
-            that.enableSetTemp = true;
-            that.enableSetState = true;
-        }
-        else if( prop == 1131 ) // Temp
-        {
-            if( that.thermostatService )
-            {
-                that.log(that.service, "received current temperature",that.get_temperature_url, "temperature is currently", value);
-                that.thermCurrentTemp = parseFloat(value);
-                if( that.thermCurrentTemp >= 0 && that.thermCurrentTemp <= 100 )
-                    that.thermostatService.getCharacteristic(Characteristic.CurrentTemperature).setValue(parseFloat(value));
-                else
-                    that.log(that.service, "Received temperature is outside of valid range.  Cannot set temperature: ",that.thermCurrentTemp);
-            }
-        }
-        else if( prop == 1133 ) // Heat setpoint
-        {
-            that.enableSetTemp = false;
-            that.enableSetState = false;
-
-            var state = Characteristic.TargetHeatingCoolingState.OFF;
-            if( that.thermostatService )
-            {
-                that.log(that.service, "received current heat setpoint",that.set_target_heat_url, "heat setpoint is currently", value);
-                that.thermHeatSet = parseFloat(value);
-
-                var state = that.thermTarState;
-                if( that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO)
-                {
-                    //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                    if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                    {
-                        var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                        if( coolDiff < 0 )
-                            coolDiff = coolDiff*-1;
-
-                        var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                        if( heatDiff < 0 )
-                            heatDiff = heatDiff*-1;
-
-                        if( coolDiff < heatDiff )
-                            state = Characteristic.TargetHeatingCoolingState.COOL;
-                        else
-                            state = Characteristic.TargetHeatingCoolingState.HEAT;
-                    }
-                    else
-                    {
-                        state = Characteristic.TargetHeatingCoolingState.OFF;
-                    }
-                }
-
-                if( state == Characteristic.TargetHeatingCoolingState.HEAT )
-                {
-                    if( that.thermHeatSet >= 10 && that.thermHeatSet <= 38 )
-                        that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermHeatSet);
-                    else
-                        that.log(that.service,"Current heat setpoint is outside of range.  Cannot set target temperature: ",that.thermHeatSet);
-                }
-            }
-            that.enableSetTemp = true;
-            that.enableSetState = true;
-        }
-        else if( prop == 1135 ) // Cool setpoint
-        {
-            that.enableSetTemp = false;
-            that.enableSetState = false;
-
-            if( that.thermostatService )
-            {
-                that.log(that.service, "received current cool setpoint",that.set_target_cool_url, "cool setpoint is currently", value);
-                that.thermCoolSet = parseFloat(value);
-
-                var state = that.thermTarState;
-                if( that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO)
-                {
-                    //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                    if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                    {
-                        var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                        if( coolDiff < 0 )
-                            coolDiff = coolDiff*-1;
-
-                        var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                        if( heatDiff < 0 )
-                            heatDiff = heatDiff*-1;
-
-                        if( coolDiff < heatDiff )
-                            state = Characteristic.TargetHeatingCoolingState.COOL;
-                        else
-                            state = Characteristic.TargetHeatingCoolingState.HEAT;
-                    }
-                    else
-                    {
-                        state = Characteristic.TargetHeatingCoolingState.OFF;
-                    }
-                }
-
-                if( state == Characteristic.TargetHeatingCoolingState.COOL )
-                {
-                    if( that.thermCoolSet >= 10 && that.thermCoolSet <= 38 )
-                        that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermCoolSet);
-                    else
-                        that.log(that.service,"Current cool setpoint is outside of range.  Cannot set target temperature: ",that.thermCoolSet);
-                }
-            }
-
-            that.enableSetTemp = true;
-            that.enableSetState = true;
-        }
-        else
-        {
-            that.enableSet = false;
-            switch (that.service) {
-                case "Security":
-                    that.httpRequest(that.status_url, "", "GET", that.username, that.password, that.sendimmediately, function(error, response, body) {
-                        if (error) {
-                            that.log('HTTP get power function failed: %s', error.message);
-                            return;
-                        } else {
-                            var binaryState = parseInt(body.replace(/\D/g,""));
-                            that.state = binaryState > 0;
-                            if( that.securityService && binaryState < 10 ) {
-                                if( binaryState < 5 ) {
-                                    that.secCurState = binaryState;
-                                    that.secTarState = binaryState;
-                                } else {
-                                    that.secTarState = 0;
-                                }
-                                that.enableSet = false;
-                                that.securityService.getCharacteristic(Characteristic.SecuritySystemCurrentState).
-                                setValue(that.secCurState);
-                                that.securityService.getCharacteristic(Characteristic.SecuritySystemTargetState).
-                                setValue(that.secTarState);
-                                that.enableSet = true;
-                            }
-                        }});
-                    break;
-            }
-            that.enableSet = true;
-        }
-        response.end('OK')
-    }
-
-    const server = http.createServer(requestHandler)
-    const port = this.base_url.substr(this.base_url.lastIndexOf('/')+1)*1+10000;
-
-    //console.log('Starting server on port '+port+' for service '+that.service)
-    {
-        server.listen(port, (err) =>
-        {
-            if (err)
-            {
-                return console.log('something bad happened', err)
-            }
-
-            //console.log(`server is listening on ${port}`)
-
-            'use strict';
-
-            var os = require('os');
-            var ifaces = os.networkInterfaces();
-
-            Object.keys(ifaces).forEach(function (ifname)
-            {
-                var alias = 0;
-
-                ifaces[ifname].forEach(function (iface)
-                {
-                    if ('IPv4' !== iface.family || iface.internal !== false)
-                    {
-                        // skip over internal (i.e. 127.0.0.1) and non-ipv4 addresses
-                        return;
-                    }
-
-                    if (alias >= 1)
-                    {
-                        // this single interface has multiple ipv4 addresses
-                        //console.log(ifname + ':' + alias, iface.address);
-                    }
-                    else
-                    {
-                        // this interface has only one ipv4 adress
-                        //console.log(ifname, iface.address);
-
-                        //console.log("Calling: "+that.base_url+"/SetApplianceIP/"+iface.address)
-                        request(that.base_url+"/SetApplianceIP/"+iface.address,
-                            function (error, response, body)
-                            {
-                                if (!error && response.statusCode == 200)
-                                {
-                                    //console.log(body) // Print the google web page.
-                                }
-                            })
-                    }
-                    ++alias;
-                });
-            });
-        })
-    }
-
-    if( this.enable_status == "yes" )
-    {
-        if( this.service == "Light" || this.service == "Dimmer" || this.service == "Switch" || this.service == "Fan" )
-            this.status_url = this.base_url + "/get";
-        else if( this.service == "Door" || this.service == "Garage Door" || this.service == "Window" ||
-            this.service == "Contact" || this.service == "Motion" || this.service == "Lock" || this.service == "Doorbell" )
-            this.status_url = this.base_url + "/get";
-        else
-            this.status_url = this.base_url + "/get";
-    }
-
-    if( this.enable_level == "yes" )
-    {
-        if( this.service == "Fan" )
-        {
-            this.brightness_url       = this.base_url + "/set/%b";
-            this.brightnesslvl_url    = this.base_url + "/get";
-        }
-        else
-        {
-            this.brightness_url         = this.base_url + "/set/%b";
-            this.brightnesslvl_url      = this.base_url + "/get";
-        }
-    }
-
-    if( this.service == "Security" )
-    {
-        this.state_url = this.base_url + "/%r/state/%s";
-    }
-
-    {
-        this.http_method            = config["http_method"] 	  	 	|| "GET";;
-        this.http_brightness_method = config["http_brightness_method"]  || this.http_method;
-        this.username               = config["username"] 	  	 	 	|| "";
-        this.password               = config["password"] 	  	 	 	|| "";
-        this.sendimmediately        = config["sendimmediately"] 	 	|| "";
-        this.name                   = config["name"];
-        this.manufacturer           = config["manufacturer"]            || "Unknown";
-        this.model                  = config["model"]                   || "Unknown";
-        this.serial                 = config["serial"]                  || "Unknown";
-        this.refresh_interval       = config["refresh_interval"]        || 300;
-        this.brightnessHandling     = config["brightnessHandling"] 	 	|| "no";
-        this.switchHandling 	    = config["switchHandling"] 		 	|| "no";
-    }
-
-    //realtime polling info
-    this.state = false;
-    this.lastSent = false;
-    this.lastState = false;
-    if( this.invert_contact == "yes" )
-        this.lastState = true;
-    this.secTarState = 3;
-    this.secCurState = 3;
-    this.targetGarageDoorState = Characteristic.TargetDoorState.CLOSED;
-    this.currentlevel = 0;
-    this.enableSet = true;
-    this.enableSetState = true;
-    this.enableSetTemp = true;
-    this.thermCurState = Characteristic.TargetHeatingCoolingState.OFF;
-    this.thermStatus = Characteristic.TargetHeatingCoolingState.OFF;
-    this.thermHeatSet = -100;
-    this.thermCoolSet = -100;
-    this.thermCurrentTemp = -100;
-    this.thermTarState = Characteristic.TargetHeatingCoolingState.OFF;
-    this.garageCheck = -1;
-
-    // Status Polling, if you want to add additional services that don't use switch handling you can add something like this || (this.service=="Smoke" || this.service=="Motion"))
-    if (this.status_url && this.switchHandling =="realtime")
-    {
-        var powerurl = this.status_url;
-        var curhvacstateurl = "";
-        var curheatseturl = "";
-        var curcoolseturl = "";
-        var curtempurl = "";
-
-        if( this.service != "Thermostat" )
-        {
-            var statusemitter = pollingtoevent(function(done)
-            {
-                that.httpRequest(powerurl, "", "GET", that.username, that.password, that.sendimmediately,
-                    function(error, response, body)
-                    {
-                        if (error)
-                        {
-                            that.log('HTTP get power function failed: %s', error.message);
-                            return;
-                        }
-                        else
-                        {
-                            done(null, body);
-                        }
-                    })
-            }, {longpolling:true,interval:this.refresh_interval,longpollEventName:"statuspoll"});
-
-            statusemitter.on("statuspoll",
-                function(data)
-                {
-                    var binaryState = parseInt(data.replace(/\D/g,""));
-                    that.state = binaryState > 0;
-                    that.log(that.service, "received power",that.status_url, "state is currently", binaryState);
-
-                    that.enableSet = false;
-                    switch (that.service)
-                    {
-                        case "Switch":
-                            if (that.switchService )
-                            {
-                                that.switchService.getCharacteristic(Characteristic.On).setValue(that.state);
-                            }
-                            break;
-                        case "Light":
-                        case "Dimmer":
-                            if (that.lightbulbService)
-                            {
-                                that.lightbulbService.getCharacteristic(Characteristic.On).setValue(that.state||that.currentlevel>0);
-                            }
-                            break;
-                        case "Door":
-                            if (that.doorService)
-                            {
-                                that.doorService.getCharacteristic(Characteristic.CurrentPosition).setValue(that.state?0:100);
-                                that.doorService.getCharacteristic(Characteristic.TargetPosition).setValue(that.state?0:100);
-                                that.doorService.getCharacteristic(Characteristic.PositionState).setValue(2);
-                            }
-                            break;
-                        case "Window":
-                            if (that.windowService)
-                            {
-                                that.windowService.getCharacteristic(Characteristic.CurrentPosition).setValue(that.state?0:100);
-                                that.windowService.getCharacteristic(Characteristic.TargetPosition).setValue(that.state?0:100);
-                                that.windowService.getCharacteristic(Characteristic.PositionState).setValue(2);
-                            }
-                            break;
-                        case "Garage Door":
-                            if( that.garageService )
-                            {
-                                that.targetGarageDoorState = that.state?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN;
-                                that.garageService.getCharacteristic(Characteristic.CurrentDoorState).setValue(that.targetGarageDoorState);
-                                that.garageService.getCharacteristic(Characteristic.TargetDoorState).setValue(that.targetGarageDoorState);
-                            }
-                            break;
-                        case "Lock":
-                            if( that.lockService )
-                            {
-                                that.lockService.getCharacteristic(Characteristic.LockCurrentState).setValue(!that.state?Characteristic.LockCurrentState.SECURED:Characteristic.LockCurrentState.UNSECURED);
-                                that.lockService.getCharacteristic(Characteristic.LockTargetState).setValue(!that.state?Characteristic.LockTargetState.SECURED:Characteristic.LockTargetState.UNSECURED);
-                            }
-                            break;
-                        case "Contact":
-                            if( that.contactService )
-                            {
-                                that.contactService.getCharacteristic(Characteristic.ContactSensorState).setValue(that.state?Characteristic.ContactSensorState.CONTACT_DETECTED:Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);
-                            }
-                            break;
-                        case "Doorbell":
-                            if( that.doorbellService )
-                            {
-                                var toCheck = true;
-                                if( that.invert_contact == "yes" )
-                                {
-                                    toCheck = false;
-                                }
-                                if( that.state == toCheck && that.state != that.lastState )
-                                {
-                                    that.lastSent = !that.lastSent;
-
-                                    that.doorbellService.getCharacteristic(Characteristic.ProgrammableSwitchEvent).setValue(that.lastSent?1:0);
-                                }
-                                that.lastState = that.state;
-                            }
-                            break;
-                        case "Motion":
-                            if( that.motionService )
-                            {
-                                that.motionService.getCharacteristic(Characteristic.MotionDetected).setValue(!that.state);
-                            }
-                            break;
-                        case "Fan":
-                            if( that.fanService )
-                            {
-                                that.fanService.getCharacteristic(Characteristic.On).setValue(that.state);
-                            }
-                            break;
-                        case "Security":
-                            if( that.securityService && binaryState < 10 )
-                            {
-                                if( binaryState < 5 )
-                                {
-                                    that.secCurState = binaryState;
-                                    that.secTarState = binaryState;
-                                }
-                                else
-                                {
-                                    that.secTarState = 0;
-                                }
-                                that.securityService.getCharacteristic(Characteristic.SecuritySystemCurrentState).setValue(that.secCurState);
-                                that.securityService.getCharacteristic(Characteristic.SecuritySystemTargetState).setValue(that.secTarState);
-                            }
-                            break;
-                    }
-                    that.enableSet = true;
-                });
-        }
-        else
-        {
-            // Emitter for current hvac status
-            {
-                curhvacstatusurl = this.get_status_url;
-                var hvacstatusemitter = pollingtoevent(function(done)
-                {
-                    that.httpRequest(curhvacstatusurl, "", "GET", that.username, that.password, that.sendimmediately,
-                        function(error, response, body)
-                        {
-                            if (error)
-                            {
-                                that.log('HTTP get hvac status function failed: %s', error.message);
-                                return;
-                            }
-                            else
-                            {
-                                done(null, body);
-                            }
-                        })
-                }, {longpolling:true,interval:this.refresh_interval,longpollEventName:"hvacstatuspoll"});
-
-                hvacstatusemitter.on("hvacstatuspoll",
-                    function(data)
-                    {
-                        var state = Characteristic.TargetHeatingCoolingState.OFF;
-                        if( data.includes(that.cool_string) )
-                        {
-                            state = Characteristic.TargetHeatingCoolingState.COOL;
-                        }
-                        else if( data.includes(that.heat_string) )
-                        {
-                            state = Characteristic.TargetHeatingCoolingState.HEAT;
-                        }
-                        that.thermCurState = state;
-
-                        that.log(that.service, "received hvac status",that.get_status_url, "hvac status is currently", data);
-
-                        that.enableSetState = false;
-                        if( state >= 0 && state <= 2 )
-                            that.thermostatService.getCharacteristic(Characteristic.CurrentHeatingCoolingState).setValue(state);
-                        else
-                            that.log(that.service,"Received hvac status that is out of range.  Cannot set status: ",state," from data: ",data);
-
-                        that.enableSetState = true;
-                    });
-            }
-
-            // Emitter for current hvac mode
-            {
-                curhvacstateurl = this.get_mode_url;
-                var hvacmodeemitter = pollingtoevent(function(done)
-                {
-                    that.httpRequest(curhvacstateurl, "", "GET", that.username, that.password, that.sendimmediately,
-                        function(error, response, body)
-                        {
-                            if (error)
-                            {
-                                that.log('HTTP get hvac state function failed: %s', error.message);
-                                return;
-                            }
-                            else
-                            {
-                                done(null, body);
-                            }
-                        })
-                }, {longpolling:true,interval:this.refresh_interval,longpollEventName:"hvacstatepoll"});
-
-                hvacmodeemitter.on("hvacstatepoll",
-                    function(data)
-                    {
-                        var state = Characteristic.TargetHeatingCoolingState.OFF;
-                        if( data == that.cool_string )
-                        {
-                            state = Characteristic.TargetHeatingCoolingState.COOL;
-                        }
-                        else if( data == that.heat_string )
-                        {
-                            state = Characteristic.TargetHeatingCoolingState.HEAT;
-                        }
-                        else if( data == that.auto_string )
-                        {
-                            state = Characteristic.TargetHeatingCoolingState.AUTO;
-                        }
-
-                        that.log(that.service, "received hvac mode",that.get_mode_url, "hvac mode is currently", data);
-                        that.thermTarState = state;
-                        that.enableSetState = false;
-                        that.thermostatService.getCharacteristic(Characteristic.TargetHeatingCoolingState).setValue(that.thermTarState);
-                        that.enableSetState = true;
-
-                        if( that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO)
-                        {
-                            //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                            if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                            {
-                                var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                                if( coolDiff < 0 )
-                                    coolDiff = coolDiff*-1;
-
-                                var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                                if( heatDiff < 0 )
-                                    heatDiff = heatDiff*-1;
-
-                                if( coolDiff < heatDiff )
-                                    state = Characteristic.TargetHeatingCoolingState.COOL;
-                                else
-                                    state = Characteristic.TargetHeatingCoolingState.HEAT;
-                            }
-                            else
-                            {
-                                state = Characteristic.TargetHeatingCoolingState.OFF;
-                            }
-                        }
-
-                        that.enableSetTemp = false;
-                        if( state == Characteristic.TargetHeatingCoolingState.COOL && that.thermCoolSet != -100 )
-                        {
-                            if( that.thermCoolSet >= 10 && that.thermCoolSet <= 38 )
-                                that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermCoolSet);
-                            else
-                                that.log(that.service,"Current cool setpoint is outside of range.  Cannot set target temperature: ",that.thermCoolSet);
-                        }
-                        if( state == Characteristic.TargetHeatingCoolingState.HEAT && that.thermHeatSet != -100 )
-                        {
-                            if( that.thermHeatSet >= 10 && that.thermHeatSet <= 38 )
-                                that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermHeatSet);
-                            else
-                                that.log(that.service,"Current heat setpoint is outside of range.  Cannot set target temperature: ",that.thermHeatSet);
-                        }
-                        that.enableSetTemp = true;
-                    });
-            }
-
-            // Emitter for current heat setpoint
-            {
-                curheatseturl = this.get_target_heat_url;
-                var hvacheatsetemitter = pollingtoevent(function(done)
-                {
-                    that.httpRequest(curheatseturl, "", "GET", that.username, that.password, that.sendimmediately,
-                        function(error, response, body)
-                        {
-                            if (error)
-                            {
-                                that.log('HTTP get hvac heat setpoint function failed: %s', error.message);
-                                return;
-                            }
-                            else
-                            {
-                                done(null, body);
-                            }
-                        })
-                }, {longpolling:true,interval:this.refresh_interval,longpollEventName:"hvacheatpoll"});
-
-                hvacheatsetemitter.on("hvacheatpoll",
-                    function(data)
-                    {
-                        that.thermHeatSet = parseFloat(data);
-                        that.log(that.service, "received hvac heat setpoint",that.get_target_heat_url, "hvac heat setpoint is currently", data);
-
-                        var state = that.thermTarState;
-                        if( that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO)
-                        {
-                            //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                            if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                            {
-                                var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                                if( coolDiff < 0 )
-                                    coolDiff = coolDiff*-1;
-
-                                var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                                if( heatDiff < 0 )
-                                    heatDiff = heatDiff*-1;
-
-                                if( coolDiff < heatDiff )
-                                    state = Characteristic.TargetHeatingCoolingState.COOL;
-                                else
-                                    state = Characteristic.TargetHeatingCoolingState.HEAT;
-                            }
-                            else
-                            {
-                                state = Characteristic.TargetHeatingCoolingState.OFF;
-                            }
-                        }
-
-                        that.enableSetTemp = false;
-                        if( state == Characteristic.TargetHeatingCoolingState.HEAT )
-                        {
-                            if( that.thermHeatSet >= 10 && that.thermHeatSet <= 38 )
-                                that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermHeatSet);
-                            else
-                                that.log(that.service,"Current heat setpoint is outside of range.  Cannot set current temperature: ",that.thermHeatSet);
-                        }
-                        that.enableSetTemp = true;
-                    });
-            }
-
-            // Emitter for current cool setpoint
-            {
-                curcoolseturl = this.get_target_cool_url;
-                var hvaccoolsetemitter = pollingtoevent(function(done)
-                {
-                    that.httpRequest(curcoolseturl, "", "GET", that.username, that.password, that.sendimmediately,
-                        function(error, response, body)
-                        {
-                            if (error)
-                            {
-                                that.log('HTTP get hvac cool setpoint function failed: %s', error.message);
-                                return;
-                            }
-                            else
-                            {
-                                done(null, body);
-                            }
-                        })
-                }, {longpolling:true,interval:this.refresh_interval,longpollEventName:"hvaccoolpoll"});
-
-                hvaccoolsetemitter.on("hvaccoolpoll",
-                    function(data)
-                    {
-                        that.thermCoolSet = parseFloat(data);
-                        that.log(that.service, "received hvac cool setpoint",that.get_target_cool_url, "hvac cool setpoint is currently", data);
-
-                        var state = that.thermTarState;
-                        if( that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO)
-                        {
-                            //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                            if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                            {
-                                var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                                if( coolDiff < 0 )
-                                    coolDiff = coolDiff*-1;
-
-                                var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                                if( heatDiff < 0 )
-                                    heatDiff = heatDiff*-1;
-
-                                if( coolDiff < heatDiff )
-                                    state = Characteristic.TargetHeatingCoolingState.COOL;
-                                else
-                                    state = Characteristic.TargetHeatingCoolingState.HEAT;
-                            }
-                            else
-                            {
-                                state = Characteristic.TargetHeatingCoolingState.OFF;
-                            }
-                        }
-
-                        that.enableSetTemp = false;
-                        if( state == Characteristic.TargetHeatingCoolingState.COOL )
-                        {
-                            if( that.thermCoolSet >= 10 && that.thermCoolSet <= 38 )
-                                that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermCoolSet);
-                            else
-                                that.log(that.service,"Current cool setpoint is outside of range.  Cannot set target temperature: ",that.thermCoolSet);
-                        }
-                        that.enableSetTemp = true;
-                    });
-            }
-
-            // Emitter for current temperature
-            {
-                curtempurl = this.get_temperature_url;
-                var hvactempemitter = pollingtoevent(function(done)
-                {
-                    that.httpRequest(curtempurl, "", "GET", that.username, that.password, that.sendimmediately,
-                        function(error, response, body)
-                        {
-                            if (error)
-                            {
-                                that.log('HTTP get current temperature function failed: %s', error.message);
-                                return;
-                            }
-                            else
-                            {
-                                done(null, body);
-                            }
-                        })
-                }, {longpolling:true,interval:this.refresh_interval,longpollEventName:"hvactemppoll"});
-
-                hvactempemitter.on("hvactemppoll",
-                    function(data)
-                    {
-                        that.thermCurrentTemp = parseFloat(data);
-                        that.log(that.service, "received current temperature",that.get_temperature_url, "temperature is currently", data);
-
-                        if( that.thermCurrentTemp >= 0 && that.thermCurrentTemp <= 100 )
-                            that.thermostatService.getCharacteristic(Characteristic.CurrentTemperature).setValue(that.thermCurrentTemp);
-                        else
-                            that.log(that.service,"Received temperature that is outside of range.  Cannot set current temperature: ",that.thermCurrentTemp);
-
-                        var state = Characteristic.TargetHeatingCoolingState.OFF;
-                        if( that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO)
-                        {
-                            //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                            if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                            {
-                                var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                                if( coolDiff < 0 )
-                                    coolDiff = coolDiff*-1;
-
-                                var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                                if( heatDiff < 0 )
-                                    heatDiff = heatDiff*-1;
-
-                                if( coolDiff < heatDiff )
-                                    state = Characteristic.TargetHeatingCoolingState.COOL;
-                                else
-                                    state = Characteristic.TargetHeatingCoolingState.HEAT;
-                            }
-                            else
-                            {
-                                state = Characteristic.TargetHeatingCoolingState.OFF;
-                            }
-                        }
-                    });
-            }
-
-        }
-    }
-
-    // Brightness Polling
-    if (this.brightnesslvl_url && this.brightnessHandling =="realtime")
-    {
-        var brightnessurl = this.brightnesslvl_url;
-        var levelemitter = pollingtoevent(function(done)
-        {
-            that.httpRequest(brightnessurl, "", "GET", that.username, that.password, that.sendimmediately,
-                function(error, response, responseBody)
-                {
-                    if (error)
-                    {
-                        that.log('HTTP get power function failed: %s', error.message);
-                        return;
-                    }
-                    else
-                    {
-                        done(null, responseBody);
-                    }
-                }) // set longer polling as slider takes longer to set value
-        }, {longpolling:true,interval:this.refresh_interval,longpollEventName:"levelpoll"});
-
-        levelemitter.on("levelpoll",
-            function(data)
-            {
-                that.currentlevel = parseInt(data);
-                that.state = that.currentlevel > 0;
-
-                that.enableSet = false;
-
-                switch (that.service)
-                {
-                    case "Light":
-                    case "Dimmer":
-                        if (that.lightbulbService)
-                        {
-                            that.log(that.service, "received brightness",that.brightnesslvl_url, "level is currently", that.currentlevel);
-                            that.lightbulbService.getCharacteristic(Characteristic.Brightness).setValue(that.currentlevel);
-                            that.lightbulbService.getCharacteristic(Characteristic.On).setValue(that.state);
-                        }
-                        break;
-                    case "Fan":
-                        if( that.fanService )
-                        {
-                            that.log(that.service, "received fan level",that.brightnesslvl_url, "level is currently", that.currentlevel);
-                            that.fanService.getCharacteristic(Characteristic.RotationSpeed).setValue(that.currentlevel*25);
-                            that.fanService.getCharacteristic(Characteristic.On).setValue(that.state);
-                        }
-                        break;
-                }
-                that.enableSet = true;
-            });
+    switch (this.serviceName){
+        case "Curtain":
+            this.switchon   = deviceType[this.serviceName].switchon;
+            this.switchoff  = deviceType[this.serviceName].switchoff;
+            this.switchstop = deviceType[this.serviceName].switchstop;
+            this.position   = deviceType[this.serviceName].position;
+
+            this.request_curtainstatus_url_open  = this.base_url + "/get/" + this.switchon;
+            this.request_curtainstatus_url_close = this.base_url + "/get/" + this.switchoff;
+            this.set_curtainstatus_url_open      = this.base_url + "/set/" + this.switchon;
+            this.set_curtainstatus_url_close     = this.base_url + "/set/" + this.switchoff;
+            this.request_curtainposition_url     = this.base_url + "/get/" + this.position;
+            // this.getStatus(this.serviceName,this.curtainService,this.request_power_url);
+
+            break;
+        case "Light":
+            this.switchon  = deviceType[this.serviceName].switchon;
+            this.switchoff = deviceType[this.serviceName].switchoff;
+            this.request_power_url = this.base_url + "/get/" + this.switchon;
+            this.set_power_url     = this.base_url + "/set/" + this.switchon;
+            // this.getStatus(this.serviceName,this.lightService,this.request_power_url);
+            break;
+        case "Dimmer":
+            this.switchon      = deviceType[this.serviceName].switchon;
+            this.switchoff     = deviceType[this.serviceName].switchoff;
+            this.brightnessnum = deviceType[this.serviceName].brightnessnum;
+            this.set_brightness_url = this.base_url + "/set/" + this.brightnessnum + "/%n";
+
+            this.request_dimmerpower_url = this.base_url + "/get/" + this.switchon;
+            this.set_dimmerpower_url     = this.base_url + "/set/" + this.switchon;
+            // this.getStatus(this.serviceName,this.dimmerService,this.request_power_url);
+            this.request_brightness_url = this.base_url + "/get/" + this.brightnessnum;
+            // this.getBrightness(this.serviceName,this.dimmerService,this.request_brightness_url);
+            
+            break;
+        case "Outlet":
+            this.switchon  = deviceType[this.serviceName].switchon;
+            this.switchoff = deviceType[this.serviceName].switchoff;
+            this.request_power_url = this.base_url + "/get/" + this.switchon;
+            this.set_power_url     = this.base_url + "/set/" + this.switchon;
+            // this.getStatus(this.serviceName,this.outletService,this.request_power_url);
+            break;
+        case "Switch":
+            this.switchon    = deviceType[this.serviceName].switchon;
+            this.switchoff   = deviceType[this.serviceName].switchoff;
+            this.request_power_url = this.base_url + "/get/" + this.switchon;
+            this.set_power_url     = this.base_url + "/set/" + this.switchon;
+            // this.getStatus(this.serviceName,this.switchService,this.request_power_url);
+            break;
+        case "Doorbell":
+            break;
+        case "TV":
+            break;
+        case "Fan":
+            this.switchon  = deviceType[this.serviceName].switchon;
+            this.switchoff = deviceType[this.serviceName].switchoff;
+            this.fanspeednum = deviceType[this.serviceName].fanspeednum;
+
+            this.request_power_url = this.base_url + "/get/" + this.switchon;
+            this.request_fanspeed_url = this.base_url + "/get/" + this.fanspeednum;
+            this.set_power_url     = this.base_url + "/set/" + this.switchon;
+            this.set_fanspeed_url     = this.base_url + "/set/" + this.fanspeednum;
+
+            break;
+        case "Motion":
+            break;
+        case "AC":
+            this.switchon       = deviceType[this.serviceName].switchon;
+            this.switchoff      = deviceType[this.serviceName].switchoff;
+            this.mode           = deviceType[this.serviceName].mode;
+            this.fanspeednum    = deviceType[this.serviceName].fanspeednum;
+            this.temperaturenum = deviceType[this.serviceName].temperaturenum;
+            this.currenttempnum = deviceType[this.serviceName].currenttempnum;
+
+            this.request_power_url = this.base_url + "/get/" + this.switchon;
+            this.set_power_url     = this.base_url + "/set/" + this.switchon;
+
+            this.request_fanspeed_url = this.base_url + "/get/" + this.fanspeednum;
+            this.set_fanspeed_url     = this.base_url + "/set/" + this.fanspeednum;
+
+
+            this.request_mode_url        = this.base_url + "/get/" + this.mode;
+            this.set_mode_url            = this.base_url + "/set/" + this.mode;
+            this.request_temperature_url = this.base_url + "/get/" + this.temperaturenum;
+            this.set_temperature_url     = this.base_url + "/set/" + this.temperaturenum + "/%n";
+            this.request_currenttemp_url = this.base_url + "/get/" + this.currenttempnum;
+            // this.getStatus(this.serviceName,this.acService,this.request_power_url);
+
+            break;
+        case "Thermostat":
+            this.switchon       = deviceType[this.serviceName].switchon;
+            this.switchoff      = deviceType[this.serviceName].switchoff;
+            this.modecool       = deviceType[this.serviceName].modecool;
+            this.modeheat       = deviceType[this.serviceName].modeheat;
+            this.modeauto       = deviceType[this.serviceName].modeauto;
+            this.currenttempnum = deviceType[this.serviceName].currenttempnum;
+
+            this.request_power_url       = this.base_url + "/get/" + this.switchon;
+            this.set_power_url           = this.base_url + "/set/" + this.switchon;
+            this.request_thermostat_url  = this.base_url + "/get/" + this.switchon;
+            this.set_thermostat_url      = this.base_url + "/set/" + this.switchon;
+            this.request_temperature_url = this.base_url + "/get/" + this.temperaturenum;
+            this.set_temperature_url     = this.base_url + "/set/" + this.temperaturenum + "/%n";
+            this.request_currenttemp_url = this.base_url + "/get/" + this.currenttempnum;
+            // this.getStatus(this.serviceName,this.thermostatService,this.request_power_url);
+
+            break;
+        case "GarageDoor":
+            this.switchon  = deviceType[this.serviceName].switchon;
+            this.switchoff = deviceType[this.serviceName].switchoff;
+            this.request_power_url = this.base_url + "/get/" + this.switchon;
+            this.set_power_url     = this.base_url + "/set/" + this.switchon;
+            // this.getStatus(this.serviceName,this.doorService,this.request_power_url);
+
+            break;
+        case "Security":
+            break;
+        case "Lock":
+            this.switchon  = deviceType[this.serviceName].switchon;
+            this.switchoff = deviceType[this.serviceName].switchoff;
+
+            this.request_lockstatus_url = this.base_url + "/get/" + this.switchon;
+            this.set_lockstatus_url     = this.base_url + "/set/" + this.switchon;
+            // this.getStatus(this.serviceName,this.lockService,this.request_power_url);
+
+            break;
+        case "FloorHeater":
+            this.switchon        = deviceType[this.serviceName].switchon;
+            this.switchoff       = deviceType[this.serviceName].switchoff;
+            this.temperaturenum  = deviceType[this.serviceName].temperaturenum;
+            this.currenttempnum  = deviceType[this.serviceName].currenttempnum;
+
+            this.request_power_url       = this.base_url + "/get/" + this.switchon;
+            this.set_floorheater_url     = this.base_url + "/set/" + this.switchon;
+            this.request_temperature_url = this.base_url + "/get/" + this.temperaturenum;
+            this.set_temperature_url     = this.base_url + "/set/" + this.temperaturenum + "/%n";
+            this.request_currenttemp_url = this.base_url + "/get/" + this.currenttempnum;
+
+            break;
+        case "Window":
+            break;
     }
 }
 
@@ -1374,7 +494,7 @@ HttpAccessory.prototype =
                     var body;
 
                     url = that.state_url.replace("%s", that.secTarState);
-                    that.log("Setting new security state: "+url);
+                    // that.log("Setting new security state: "+url);
 
                     that.httpRequest(url, body, that.http_method, that.username, that.password, that.sendimmediately,
                         function(error, response, responseBody)
@@ -1386,7 +506,7 @@ HttpAccessory.prototype =
                             }
                             else
                             {
-                                that.log('HTTP set security state function succeeded!');
+                                // that.log('HTTP set security state function succeeded!');
                                 callback();
                             }
                         }.bind(that));
@@ -1401,44 +521,25 @@ HttpAccessory.prototype =
         setPowerState: function(powerOn, callback)
         {
             var that = this;
-            if( this.enable_level && this.brightness_url && ((this.currentlevel == 0 && powerOn) || (this.currentlevel > 0 && !powerOn))  )
-            {
-                this.setBrightness(powerOn?100:0,callback);
-                return;
-            }
-            else if( this.enable_level && this.brightness_url )
-            {
-                this.log("Called set power state, but power is already at appropriate state. Doing nothing.");
-                callback();
-                return;
-            }
 
-            if (this.enableSet == true && (this.currentlevel == 0 || !powerOn ))
+
+            if (this.set_power_url && (powerOn != undefined ))
             {
                 var url;
                 var body;
-
-                if( this.enable_level )
-                    this.state = powerOn;
-
-                if (!this.on_url || !this.off_url)
-                {
-                    this.log.warn("Ignoring request; No power url defined.");
-                    callback(new Error("No power url defined."));
-                    return;
-                }
+                this.setpowerstatus = powerOn;
 
                 if (powerOn)
                 {
-                    url = this.on_url;
-                    body = this.on_body;
-                    this.log("Setting power state to on");
+                    url = this.set_power_url + "/true";
+                    body = "";
+                    // this.log("Setting power state to on",powerOn);
                 }
                 else
                 {
-                    url = this.off_url;
-                    body = this.off_body;
-                    this.log("Setting power state to off");
+                    url = this.set_power_url + "/false";
+                    body = "";
+                    // this.log("Setting power state to off",powerOn);
                 }
 
                 this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
@@ -1446,58 +547,185 @@ HttpAccessory.prototype =
                     {
                         if (error)
                         {
-                            this.log('HTTP set power function failed: %s', error.message);
+                            this.log('HTTP set power function failed: %s,%s', error.message);
                             callback(error);
                         }
                         else
                         {
-                            this.log('HTTP set power function succeeded!');
+                            // this.log('HTTP set power function succeeded!',this.serviceName,responseBody);
                             callback();
+                        }
+                    }.bind(this));
+            }
+            else
+            {
+                callback(null);
+            }
+        },
 
-                            if(this.garageService)
+        setDimmerState: function(powerOn, callback)
+        {
+            var that = this;
+
+
+            if (this.set_dimmerpower_url && (powerOn != undefined ))
+            {
+                var url;
+                var body = "";
+                this.setpowerstatus = powerOn;
+
+                if (!powerOn)
+                {
+                    url = that.set_brightness_url.replace("%n", 0);
+
+                this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
+                    function(error, response, responseBody)
+                    {
+                        if (error)
+                        {
+                            this.log('HTTP set power function failed: %s,%s', error.message);
+                            callback(error);
+                        }
+                        else
+                        {
+                            // this.log('HTTP set power function succeeded!',this.serviceName,responseBody);
+                            callback();
+                        }
+                    }.bind(this));
+
+                }else
+                {
+                    // url = this.set_dimmerpower_url + "/true";
+                    // body = "";
+                    if(this.getpowerstatus == false){
+
+
+                    if(this.getbrightnesslever == 0){
+                        this.getbrightnesslever = 100;
+                    }
+
+                    url = that.set_brightness_url.replace("%n", this.getbrightnesslever);
+                    this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
+                        function(error, response, responseBody)
+                        {
+                            if (error)
                             {
-                                if( this.garageCheck != -1 )
-                                {
-                                    clearInterval(this.garageCheck);
-                                    this.garageCheck = -1;
-                                }
-                                this.garageCheckCount = 0;
-
-                                this.garageCheck = setInterval(function()
-                                {
-                                    this.garageCheckCount++;
-                                    if( this.garageCheckCount > 30 )
-                                    {
-                                        if( this.garageCheck != -1 )
-                                        {
-                                            clearInterval(this.garageCheck);
-                                            this.garageCheck = -1;
-                                        }
-                                        return;
-                                    }
-
-                                    this.httpRequest(this.status_url, "", "GET", this.username, this.password, this.sendimmediately,
-                                        function(error, response, body)
-                                        {
-                                            if (error)
-                                            {
-                                                this.log('HTTP get power function failed: %s', error.message);
-                                                return;
-                                            }
-                                            else
-                                            {
-                                                var binaryState = parseInt(body.replace(/\D/g,""));
-                                                this.state = binaryState > 0;
-                                                this.log(this.service, "received power",this.status_url, "state is currently", binaryState);
-
-                                                this.enableSet = false;
-                                                this.garageService.getCharacteristic(Characteristic.CurrentDoorState)
-                                                    .setValue(this.state?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN);
-                                                this.enableSet = true;
-                                            }
-                                        }.bind(this))
-                                }.bind(this),1000);
+                                this.log('HTTP set power function failed: %s,%s', error.message);
+                                callback(error);
                             }
+                            else
+                            {
+                                // this.log('HTTP set power function succeeded!',this.serviceName,responseBody);
+                                callback();
+                            }
+                        }.bind(this));
+                    }else {
+                        callback();
+                    }
+                }
+
+            }
+            else
+            {
+                callback();
+            }
+        },
+
+        setFanSpeed: function(fanSpeed, callback)
+        {
+            var that = this;
+
+            if (fanSpeed != undefined )
+            {
+                var url;
+                var body;
+
+                // 低速 0/中速 1/高速 2/自动 3
+
+                if(fanSpeed < 26){
+                    url = this.set_fanspeed_url + "/0";
+                }
+
+                if(fanSpeed > 25 && fanSpeed < 51){
+                    url = this.set_fanspeed_url + "/1";
+                }
+
+                if(fanSpeed > 75){
+                    url = this.set_fanspeed_url + "/2";
+                }
+
+                if(fanSpeed == 75){
+                    url = this.set_fanspeed_url + "/3";
+                }
+
+                    body = ""
+                    // this.log("Setting fan speed to %s",fanSpeed,url,this.http_method);
+
+                this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
+                    function(error, response, responseBody)
+                    {
+                        if (error)
+                        {
+                            this.log('HTTP set fan speed function failed: %s,%s', error.message);
+                            // callback();
+                            callback(error);
+                        }
+                        else
+                        {
+                            // this.log('HTTP set fan speed function succeeded!',responseBody);
+                            callback();
+                        }
+                    }.bind(this));
+            }
+            else
+            {
+                callback();
+            }
+        },
+
+        setACFanSpeed : function (fanSpeed, callback) {
+            var that = this;
+
+            if (fanSpeed != undefined )
+            {
+                var url;
+                var body;
+
+                // 低速 0/中速 1/高速 2/自动 3
+
+                if(fanSpeed < 26){
+                    url = this.set_fanspeed_url + "/0";
+                }
+
+                if(fanSpeed > 25 && fanSpeed < 51){
+                    url = this.set_fanspeed_url + "/1";
+                }
+
+                if(fanSpeed > 75){
+                    url = this.set_fanspeed_url + "/2";
+                }
+
+                if(fanSpeed == 75){
+                    url = this.set_fanspeed_url + "/3";
+                }
+
+                body = ""
+                // this.log("Setting fan speed to %s",fanSpeed,url,this.http_method);
+
+                this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
+                    function(error, response, responseBody)
+                    {
+                        if (error)
+                        {
+                            this.log('HTTP set fan speed function failed: %s,%s', error.message);
+                            // callback();
+                            callback(error);
+                        }
+                        else
+                        {
+                            // this.log('HTTP set fan speed function succeeded!',responseBody);
+
+                            callback();
                         }
                     }.bind(this));
             }
@@ -1510,32 +738,22 @@ HttpAccessory.prototype =
         setBrightness: function(level, callback)
         {
             var that = this;
-            if( !this.enable_level )
-            {
-                callback();
-                return;
-            }
 
-            if (this.enableSet == true)
-            {
-                if (!this.brightness_url)
+                if (this.set_brightness_url)
                 {
-                    this.log.warn("Ignoring request; No brightness url defined.");
-                    callback(new Error("No brightness url defined."));
-                    return;
-                }
+                    // that.log.warn('that.getpowerstatus:',that.getpowerstatus,that.getbrightnesslever)
+                    var url
+                    if(that.getpowerstatus == false && (level == 100)){
+                        url = that.set_brightness_url.replace("%n", this.getbrightnesslever);
+                    }else {
+                        url = that.set_brightness_url.replace("%n", level);
+                    }
 
-                if( this.service == "Fan" )
-                    level = Math.round(level/25);
+                    // url = that.set_brightness_url.replace("%n", level);
 
-                this.currentlevel = level;
+                    // that.log("Setting brightness to %s", level,url);
 
-                setTimeout(function() {
-                    var url = that.brightness_url.replace("%b", that.currentlevel)
-
-                    that.log("Setting brightness to %s", level);
-
-                    that.httpRequest(url, "", that.http_brightness_method, that.username, that.password, that.sendimmediately,
+                    that.httpRequest(url, "", that.http_method, that.username, that.password, that.sendimmediately,
                         function(error, response, body)
                         {
                             if (error)
@@ -1545,194 +763,839 @@ HttpAccessory.prototype =
                             }
                             else
                             {
-                                that.log('HTTP brightness function succeeded!');
-                                that.enableSet = false;
-                                if( that.lightbulbService ) {
-                                    that.lightbulbService.getCharacteristic(Characteristic.On).setValue(that.currentlevel>0);
-                                    that.lightbulbService.getCharacteristic(Characteristic.Brightness).setValue(that.currentlevel);
-                                }
-                                if( that.fanService ) {
-                                    that.fanService.getCharacteristic(Characteristic.On).setValue(that.currentlevel>0);
-                                    that.fanService.getCharacteristic(Characteristic.RotationSpeed).setValue(that.currentlevel*25);
-                                }
-                                that.enableSet = true;
+                                // that.log('HTTP brightness function succeeded!',body);
+                                // that.dimmerService.getCharacteristic(Characteristic.Brightness).setValue(parseInt(body));
                                 callback();
                             }
-                        }.bind(that));
-                },300);
-            }
-            else
+                        });
+                }else {
+                    this.log.warn("Ignoring request; No brightness url defined.");
+                    callback(new Error("No brightness url defined."));
+                }
+        },
+
+        setCurtainState : function (level, callback) {
+            var that = this;
+
+            if (this.set_curtainstatus_url_open)
             {
-                callback();
+                // that.log.warn('that.getpowerstatus:',that.getpowerstatus,that.getbrightnesslever)
+                var url
+                if(level > 50){
+                    url = that.set_curtainstatus_url_open + '/true';
+                    // that.log("Setting curtain to open",url);
+                }else {
+                    url = that.set_curtainstatus_url_close + '/true';
+                    // that.log("Setting curtain to close",url);
+                }
+
+                that.httpRequest(url, "", that.http_method, that.username, that.password, that.sendimmediately,
+                    function(error, response, body)
+                    {
+                        if (error)
+                        {
+                            that.log('HTTP curtain function failed: %s', error);
+                            callback(error);
+                        }
+                        else
+                        {
+                            // that.log('HTTP curtain function succeeded!',body);
+                            if(level > 0){
+                                that.curtainService.getCharacteristic(Characteristic.CurrentPosition).setValue(level);
+
+                            }else {
+                                that.curtainService.getCharacteristic(Characteristic.CurrentPosition).setValue(0);
+
+                            }
+                            callback();
+                        }
+                    });
+            }else {
+                this.log.warn("Ignoring request; No curtain url defined.");
+                callback(new Error("No curtain url defined."));
             }
         },
 
-        setThermostatTargetHeatingCoolingState: function(state, callback)
+        setLockState: function(lockstatus, callback)
         {
             var that = this;
-            if( !this.enableSetState )
+
+
+
+            if (this.set_lockstatus_url)
             {
-                callback();
-                return;
+
+                var url;
+                var body;
+
+            if (lockstatus == Characteristic.LockTargetState.UNSECURED)
+            {
+                url = this.set_lockstatus_url + "/true";
+                body = "";
+                // this.log("Setting lock state to on",lockstatus);
+            }
+            else
+            {
+                url = this.set_lockstatus_url + "/false";
+                body = "";
+                // this.log("Setting lock state to off",lockstatus);
+            }
+            that.httpRequest(url, "", that.http_method, that.username, that.password, that.sendimmediately,
+                function(error, response, body)
+                {
+                    if (error)
+                    {
+                        that.log('HTTP lock function failed: %s', error);
+                        callback(error);
+                    }
+                    else
+                    {
+                        // that.log('HTTP lock function succeeded!',body);
+
+                        if(lockstatus == Characteristic.LockTargetState.UNSECURED){
+                            that.setlockstatus = false;
+                            that.lockService
+                                .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
+
+                        }else {
+                            that.setlockstatus = true;
+                            that.lockService
+                                .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
+
+                        }
+                        callback();
+                    }
+                });
+            }else {
+                this.log.warn("Ignoring request; No lock url defined.");
+                callback("No lock url defined.");
             }
 
-            if( !this.set_mode_url )
-            {
-                this.log.warn("Ignoring request; No set mode url defined.");
-                callback(new Error("No set mode url defined."));
-                return;
-            }
+        },
 
-            var mode = this.off_string;
+        setGarageDoorState : function (lockstatus, callback) {
+            var that = this;
+
+
+
+            if (this.set_garagedoor_url)
+            {
+
+                var url;
+                var body;
+
+                if (lockstatus == Characteristic.TargetDoorState.OPEN)
+                {
+                    url = this.set_garagedoor_url + "/true";
+                    body = "";
+                    // this.log("Setting lock state to on",lockstatus);
+                }
+                else
+                {
+                    url = this.set_garagedoor_url + "/false";
+                    body = "";
+                    // this.log("Setting lock state to off",lockstatus);
+                }
+                that.httpRequest(url, "", that.http_method, that.username, that.password, that.sendimmediately,
+                    function(error, response, body)
+                    {
+                        if (error)
+                        {
+                            that.log('HTTP garage door function failed: %s', error);
+                            callback(error);
+                        }
+                        else
+                        {
+                            // that.log('HTTP garage door function succeeded!',body);
+
+                            if(lockstatus == Characteristic.TargetDoorState.OPEN){
+                                that.setgaragedoorstatus = true;
+                                that.lockService
+                                    .setCharacteristic(Characteristic.CurrentDoorState, Characteristic.CurrentDoorState.OPEN);
+
+                            }else {
+                                that.setgaragedoorstatus = false;
+                                that.lockService
+                                    .setCharacteristic(Characteristic.CurrentDoorState, Characteristic.CurrentDoorState.CLOSED);
+
+                            }
+                            callback();
+                        }
+                    });
+            }else {
+                this.log.warn("Ignoring request; No lock url defined.");
+                callback("No lock url defined.");
+            }
+        },
+
+        setFloorHeaterStatus:function (state, callback) {
+            var that = this;
+            var url,body;
+
             if( state == Characteristic.TargetHeatingCoolingState.OFF )
             {
-                mode = this.off_string;
+                url = this.set_floorheater_url + '/false';
             }
-            else if( state == Characteristic.TargetHeatingCoolingState.HEAT )
+            else
             {
-                mode = this.heat_string;
-            }
-            else if( state == Characteristic.TargetHeatingCoolingState.COOL )
-            {
-                mode = this.cool_string;
-            }
-            else if( state == Characteristic.TargetHeatingCoolingState.AUTO )
-            {
-                mode = this.auto_string;
+                url = this.set_floorheater_url + '/true';
             }
 
-            this.thermTarState = mode;
-
-            var url = this.set_mode_url.replace("%m", mode);
-
-            this.log("Setting hvac mode to %s", mode);
+            // this.log("Setting hvac mode to ", url);
 
             this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
                 function(error, response, body)
                 {
                     if( error )
                     {
-                        this.log('HTTP HVAC mode function failed: %s', error);
+                        this.log('HTTP floorheater mode function failed: %s', error);
                         callback(error);
                     }
                     else
                     {
-                        this.log('HTTP HVAC mode function succeeded!');
+                        // this.log('HTTP floorheater mode function succeeded!',body);
 
-                        if( that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO)
-                        {
-                            //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                            if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                            {
-                                var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                                if( coolDiff < 0 )
-                                    coolDiff = coolDiff*-1;
-
-                                var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                                if( heatDiff < 0 )
-                                    heatDiff = heatDiff*-1;
-
-                                if( coolDiff < heatDiff )
-                                    state = Characteristic.TargetHeatingCoolingState.COOL;
-                                else
-                                    state = Characteristic.TargetHeatingCoolingState.HEAT;
-                            }
-                            else
-                            {
-                                state = Characteristic.TargetHeatingCoolingState.OFF;
-                            }
-                        }
-
-                        that.enableSetTemp = false;
-                        if( state == Characteristic.TargetHeatingCoolingState.COOL && that.thermCoolSet != -100 )
-                        {
-                            if( that.thermCoolSet >= 10 && that.thermCoolSet <= 38 )
-                                that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermCoolSet);
-                            else
-                                that.log(that.service,"Current cool setpoint is outside of range.  Cannot set target temperature: ",that.thermCoolSet);
-                        }
-                        if( state == Characteristic.TargetHeatingCoolingState.HEAT && that.thermHeatSet != -100 )
-                        {
-                            if( that.thermHeatSet >= 10 && that.thermHeatSet <= 38 )
-                                that.thermostatService.getCharacteristic(Characteristic.TargetTemperature).setValue(that.thermHeatSet);
-                            else
-                                that.log(that.service,"Current heat setpoint is outside of range.  Cannot set target temperature: ",that.thermHeatSet);
-                        }
-                        that.enableSetTemp = true;
+                        // switch (state){
+                        //     case Characteristic.TargetHeatingCoolingState.OFF:
+                        //         that.floorHeaterService.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.OFF);
+                        //         this.getmodelever = Characteristic.CurrentHeatingCoolingState.OFF;
+                        //         break;
+                        //     case Characteristic.TargetHeatingCoolingState.HEAT:
+                        //         that.floorHeaterService.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.HEAT);
+                        //         break;
+                        //     case Characteristic.TargetHeatingCoolingState.COOL:
+                        //         that.floorHeaterService.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.COOL);
+                        //         break;
+                        // }
 
                         callback();
                     }
                 }.bind(this));
+        },
+
+        setThermostatTargetHeatingCoolingState: function(state, callback)
+        {
+            // 送风 0/制热 1/制冷 2/自动 3/除湿 7
+            var that = this;
+            var url = undefined,powerurl = undefined,fanurl = undefined,body;
+
+            switch (state){
+                case Characteristic.TargetHeatingCoolingState.HEAT:
+                    url = this.set_mode_url + '/1';
+                    powerurl = this.set_power_url + '/true';
+                    break;
+                case Characteristic.TargetHeatingCoolingState.COOL:
+                    url = this.set_mode_url + '/2';
+                    powerurl = this.set_power_url + '/true';
+                    break;
+                case Characteristic.TargetHeatingCoolingState.AUTO:
+                    url = this.set_mode_url + '/3';
+                    powerurl = this.set_power_url + '/true';
+                    break;
+                case Characteristic.TargetHeatingCoolingState.OFF:
+                    powerurl = this.set_power_url + '/false';
+                    fanurl = that.set_fanspeed_url + '/0';
+                    break;
+            }
+
+
+            if(url){
+                // this.log("Setting AC mode to ", url);
+
+                this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                    function(error, response, body)
+                    {
+                        if( error )
+                        {
+                            this.log('HTTP AC power function failed: %s', error);
+                            callback(error);
+                            return;
+                        }else {
+                            // callback();
+                        }
+                    }.bind(this));
+
+            }
+
+
+            if(powerurl){
+                this.httpRequest(powerurl, "", "GET", this.username, this.password, this.sendimmediately,
+                    function(error, response, body)
+                    {
+                        if( error )
+                        {
+                            this.log('HTTP AC power function failed: %s', error);
+                            callback(error);
+                        }else {
+                            callback();
+                        }
+                    }.bind(this));
+            }else{
+                callback();
+            }
+
         },
 
         setThermostatTargetTemp: function(temp, callback)
         {
             var that = this;
-            if( !this.enableSetTemp )
+            if( this.set_temperature_url )
             {
-                callback();
-                return;
+                var url;
+
+
+            if( temp <16 ){
+                temp = 16;
             }
 
-            if( temp == -100 )
-                return;
+                if( temp >35 )
+                    temp = 35;
 
-            if( !this.set_target_cool_url || !this.set_target_heat_url )
-            {
-                this.log.warn("Ignoring request; Both set setpoint urls must be defined.");
-                callback(new Error("Both set setpoint urls must be defined."));
-                return;
-            }
-
-            var mode = this.thermTarState;
-            if( mode == Characteristic.TargetHeatingCoolingState.OFF ||
-                mode == Characteristic.TargetHeatingCoolingState.AUTO )
-            {
-                if( this.thermCurrentTemp != -100 && this.thermCoolSet != -100 && this.thermHeatSet != -100 )
-                {
-                    var coolDiff = this.thermCurrentTemp - this.thermCoolSet;
-                    if( coolDiff < 0 )
-                        coolDiff = coolDiff*-1;
-
-                    var heatDiff = this.thermCurrentTemp - this.thermHeatSet;
-                    if( heatDiff < 0 )
-                        heatDiff = heatDiff*-1;
-
-                    if( coolDiff < heatDiff )
-                        mode = Characteristic.TargetHeatingCoolingState.COOL;
-                    else
-                        mode = Characteristic.TargetHeatingCoolingState.HEAT;
-                }
-                else
-                {
-                    mode = Characteristic.TargetHeatingCoolingState.COOL;
-                }
-            }
-
-            var url = this.set_target_heat_url.replace("%c",temp);
-            var modeString = "heat setpoint";
-            if( mode == Characteristic.TargetHeatingCoolingState.COOL )
-            {
-                url = this.set_target_cool_url.replace("%c",temp);
-                modeString = "cool setpoint";
-            }
-
-            this.log("Setting %s to %s", modeString, temp);
+                url = this.set_temperature_url.replace("%n", temp)
 
             this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
                 function(error, response, body)
                 {
                     if( error )
                     {
-                        this.log('HTTP HVAC setpoint function failed: %s', error);
+                        this.log('HTTP Target Temp function failed: %s', error);
                         callback(error);
                     }
                     else
                     {
-                        this.log('HTTP HVAC setpoint function succeeded!');
+                        // this.log('HTTP Target Temp function succeeded!');
                         callback();
                     }
                 }.bind(this));
+            }else{
+                callback();
+            }
+        },
+
+        getStatus: function (servicename,service,url) {
+            var that = this;
+            if(service){
+                this.statusemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, body)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get power function failed: %s', error.message,url);
+                                // return;
+                                done(null,undefined);
+                            }
+                            else
+                            {
+                                // this.log(servicename, "received power",url, "state is currently", body);
+                                done(null, body);
+                            }
+                        }.bind(this))
+                }.bind(this), {
+                    longpolling:true,
+                    interval:that.refresh_interval,
+                    longpollEventName:"statuspoll"
+                });
+
+                this.statusemitter.on("statuspoll",function(data){
+                        // console.log(data);
+                        if(data){
+
+                            this.getpowerstatus = data;
+
+                            // this.log("received power",url, "state is currently", this.getpowerstatus);
+                                    // this.enableSet = false;
+                                    if(data.toString().toLowerCase() == 'true'){
+                                        service.getCharacteristic(Characteristic.On).setValue(true);
+                                    }else {
+                                        service.getCharacteristic(Characteristic.On).setValue(false);
+                                    }
+                        }
+                    }.bind(this));
+
+                this.statusemitter.on("err", function(err) {
+                    console.log(err);
+                });
+
+
+            }else{
+                this.log("service not init")
+            }
+
+        },
+        
+        getFloorHeaterStatus : function (servicename,service,url) {
+            var that = this;
+            if(service){
+                this.floorheaterstatusemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, body)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get floorheater power function failed: %s', error.message,url);
+                                // return;
+                                done(null,undefined);
+                            }
+                            else
+                            {
+                                // this.log(servicename, "received power",url, "state is currently", body);
+                                done(null, body);
+                            }
+                        }.bind(this))
+                }.bind(this), {
+                    longpolling:true,
+                    interval:that.refresh_interval,
+                    longpollEventName:"floorheaterstatuspoll"
+                });
+
+                this.floorheaterstatusemitter.on("floorheaterstatuspoll",function(data){
+                    // console.log(data);
+                    if(data){
+
+                        // this.getpowerstatus = data;
+                        // this.enableSet = false;
+                        if(data.toString().toLowerCase() == 'true'){
+                            // service.getCharacteristic(Characteristic.CurrentHeatingCoolingState).setValue(Characteristic.CurrentHeatingCoolingState.HEAT);
+                            service.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.HEAT);
+                            // this.getmodelever = Characteristic.CurrentHeatingCoolingState.HEAT;
+                            // this.log("received floorheater mode",url, "state is currently", Characteristic.TargetHeatingCoolingState.HEAT);
+                        }else {
+                            // this.getmodelever = Characteristic.CurrentHeatingCoolingState.OFF;
+                            // this.log("received floorheater mode",url, "state is currently", Characteristic.TargetHeatingCoolingState.OFF);
+                            // service.getCharacteristic(Characteristic.CurrentHeatingCoolingState).setValue(Characteristic.CurrentHeatingCoolingState.OFF);
+                            service.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.OFF);
+                        }
+                    }
+                }.bind(this));
+
+                this.floorheaterstatusemitter.on("err", function(err) {
+                    console.log(err);
+                });
+
+
+            }else{
+                this.log("service not init")
+            }
+        },
+
+        getBrightness : function (servicename,service,url) {
+            if(service){
+                var that = this;
+            this.brightnessemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, responseBody)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get brightness function failed : %s', error.message);
+                                // return;
+                                done(null, undefined);
+                            }
+                            else
+                            {
+                                done(null, responseBody);
+                            }
+                        }.bind(this)) // set longer polling as slider takes longer to set value
+                }.bind(this), {longpolling:true,interval:that.refresh_interval,longpollEventName:"brightnesspoll"});
+
+            this.brightnessemitter.on("brightnesspoll",
+                    function(data)
+                    {
+                        if(data){
+                            var currentlevel = parseInt(data);
+
+                            if(currentlevel>0){
+                                service.setCharacteristic(Characteristic.On,true);
+                                // this.log(servicename, "received brightness",url, "level is currently", currentlevel);
+                                service.setCharacteristic(Characteristic.Brightness,currentlevel);
+                                this.getbrightnesslever = currentlevel;
+                                this.getpowerstatus = true;
+                            }else {
+                                service.setCharacteristic(Characteristic.On,false);
+                                this.getpowerstatus = false;
+                            }
+                        }
+
+                    }.bind(this));
+                 }
+            },
+
+        getFanSpeed : function (servicename,service,url) {
+
+            if(service){
+                var that = this;
+                this.fanspeedemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, responseBody)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get power function failed: %s', error.message);
+                                // return;
+                                done(null, undefined);
+                            }
+                            else
+                            {
+                                done(null, responseBody);
+                            }
+                        }.bind(this)) // set longer polling as slider takes longer to set value
+                }.bind(this), {longpolling:true,interval:that.refresh_interval,longpollEventName:"brightnesspoll"});
+
+                this.fanspeedemitter.on("brightnesspoll",
+                    function(data)
+                    {
+                        // console.log(data);
+                        if(data){
+                            var currentlevel = parseInt(data);
+                            // 低速 0/中速 1/高速 2/自动 3
+                            switch (currentlevel){
+                                case 0:
+                                    currentlevel = 25;
+                                    break;
+                                case 1:
+                                    currentlevel = 50;
+                                    break;
+                                case 2:
+                                    currentlevel = 100;
+                                    break;
+                                case 3:
+                                    currentlevel = 75;
+                                    break;
+                            }
+                            this.getfanspeedlever = currentlevel;
+
+                            // console.log(data)
+                            // this.log(servicename, "received fan speed",url, "level is currently", currentlevel);
+                            service.getCharacteristic(Characteristic.RotationSpeed).setValue(currentlevel);
+                        }
+
+                    }.bind(this));
+            }
+        },
+
+        getCurtainStatus : function (servicename,service,url) {
+            if(service){
+                var that = this;
+
+                this.log.warn('url:',url);
+                this.curtainemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, responseBody)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get curtain function failed : %s', error.message);
+
+                                done(null, undefined);
+                            }
+                            else
+                            {
+                                done(null, responseBody);
+                            }
+                        }.bind(this)) // set longer polling as slider takes longer to set value
+                }.bind(this), {longpolling:true,interval:that.refresh_interval,longpollEventName:"curtainpositionpoll"});
+
+                this.curtainemitter.on("curtainpositionpoll",
+                    function(data)
+                    {
+                        if(data){
+                            var currentlevel = 100 - parseInt(data);
+                            // this.log(servicename, "received curtain",url, "level is currently", currentlevel);
+                            service.getCharacteristic(Characteristic.TargetPosition).updateValue(currentlevel);
+                        }
+
+                    }.bind(this));
+            }
+        },
+
+        getLockStatus : function (servicename,service,url) {
+            var that = this;
+            if(service){
+                this.statusemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, body)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get lock function failed: %s', error.message,url);
+                                // return;
+                                done(null,undefined);
+                            }
+                            else
+                            {
+                                done(null, body);
+                            }
+                        }.bind(this))
+                }.bind(this), {
+                    longpolling:true,
+                    interval:that.refresh_interval,
+                    longpollEventName:"lockstatuspoll"
+                });
+
+                this.statusemitter.on("lockstatuspoll",function(data){
+                    if(data){
+
+                        this.getlockstatus = data;
+
+                        // this.log("received lock",url, "state is currently", this.getlockstatus);
+                        if(data.toString().toLowerCase() == 'true'){
+                            service.getCharacteristic(Characteristic.LockCurrentState).setValue(Characteristic.LockCurrentState.UNSECURED);
+                            service.getCharacteristic(Characteristic.LockTargetState).setValue(Characteristic.LockTargetState.UNSECURED);
+                        }else {
+                            service.getCharacteristic(Characteristic.LockCurrentState).setValue(Characteristic.LockCurrentState.SECURED);
+                            service.getCharacteristic(Characteristic.LockTargetState).setValue(Characteristic.LockTargetState.SECURED);
+                        }
+                    }
+                }.bind(this));
+
+                this.statusemitter.on("err", function(err) {
+                    console.log(err);
+                });
+
+
+            }else{
+                this.log("lock service not init")
+            }
+        },
+
+        getGarageDoorStatus : function (servicename,service,url) {
+            var that = this;
+            if(service){
+                this.statusemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, body)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get Garage Door function failed: %s', error.message,url);
+                                // return;
+                                done(null,undefined);
+                            }
+                            else
+                            {
+                                done(null, body);
+                            }
+                        }.bind(this))
+                }.bind(this), {
+                    longpolling:true,
+                    interval:that.refresh_interval,
+                    longpollEventName:"garagedoorstatuspoll"
+                });
+
+                this.statusemitter.on("garagedoorstatuspoll",function(data){
+                    if(data){
+
+                        this.getgaragedoorstatus = data;
+
+                        // this.log("received Garage Door",url, "state is currently", this.getgaragedoorstatus);
+                        if(data.toString().toLowerCase() == 'true'){
+                            service.getCharacteristic(Characteristic.CurrentDoorState).setValue(Characteristic.CurrentDoorState.OPEN);
+                        }else {
+                            service.getCharacteristic(Characteristic.CurrentDoorState).setValue(Characteristic.CurrentDoorState.CLOSED);
+                        }
+                    }
+                }.bind(this));
+
+                this.statusemitter.on("err", function(err) {
+                    console.log(err);
+                });
+
+
+            }else{
+                this.log("lock service not init")
+            }
+        },
+
+        getThermostatTemp : function (servicename,service,url) {
+            if(service){
+                var that = this;
+                this.thermostattempemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, responseBody)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get Target Temperature function failed : %s', error.message);
+                                // return;
+                                done(null, undefined);
+                            }
+                            else
+                            {
+                                done(null, responseBody);
+                            }
+                        }.bind(this)) // set longer polling as slider takes longer to set value
+                }.bind(this), {longpolling:true,interval:that.refresh_interval,longpollEventName:"thermostattemppoll"});
+
+                this.thermostattempemitter.on("thermostattemppoll",
+                    function(data)
+                    {
+                        if(data){
+                            var currentlevel = parseInt(data);
+                            this.settemperaturelever = currentlevel;
+                            // this.log(servicename, "received Target Temperature",url, "level is currently", currentlevel);
+                            service.getCharacteristic(Characteristic.TargetTemperature).setValue(currentlevel);
+                            // service.getCharacteristic(Characteristic.On).setValue(state);
+                        }
+
+                    }.bind(this));
+            }
+        },
+
+        getCurrentTemp : function (servicename,service,url) {
+            if(service){
+                var that = this;
+                this.currenttempemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, responseBody)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get Current Temperature function failed : %s', error.message);
+                                // return;
+                                done(null, undefined);
+                            }
+                            else
+                            {
+                                done(null, responseBody);
+                            }
+                        }.bind(this)) // set longer polling as slider takes longer to set value
+                }.bind(this), {longpolling:true,interval:that.refresh_interval,longpollEventName:"currenttemppoll"});
+
+                this.currenttempemitter.on("currenttemppoll",
+                    function(data)
+                    {
+                        if(data){
+                            var currentlevel = parseInt(data);
+                            this.gettemperaturelever = currentlevel;
+                            // this.log(servicename, "received Current Temperature",url, "level is currently", currentlevel);
+                            service.getCharacteristic(Characteristic.CurrentTemperature).setValue(currentlevel);
+                            // service.getCharacteristic(Characteristic.On).setValue(state);
+                        }
+
+                    }.bind(this));
+            }
+        },
+
+        getThermostatHeatingCoolingState : function (servicename,service,url) {
+            var that = this;
+            // 送风 0/制热 1/制冷 2/自动 3/除湿 7
+            if(service){
+                this.acemitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, body)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get ac mode function failed: %s', error.message,url);
+                                done(null,undefined);
+                            }
+                            else
+                            {
+                                done(null, body);
+                            }
+                        }.bind(this))
+                }.bind(this), {
+                    longpolling:true,
+                    interval:that.refresh_interval,
+                    longpollEventName:"acpoll"
+                });
+
+                this.acemitter.on("acpoll",function(data){
+                    // console.log(data);
+                    if(data) {
+                        try{
+                            switch (parseInt(data)) {
+                                case 1:
+                                    service.setCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.HEAT);
+                                    break;
+                                case 2:
+                                    service.setCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.COOL);
+                                    break;
+                                case 3:
+                                case 0:
+                                case 7:
+                                    service.setCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.AUTO);
+                                    break;
+
+                            }
+                        }catch (e){
+
+                        }
+
+                    }
+                }.bind(this));
+
+                this.acemitter.on("err", function(err) {
+                    console.log(err);
+                });
+
+
+            }else{
+                this.log("service not init")
+            }
+        },
+
+        getACStatus : function (servicename,service,url) {
+            var that = this;
+            if(service){
+                this.acpoweremitter = pollingtoevent(function(done)
+                {
+                    this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                        function(error, response, body)
+                        {
+                            if (error)
+                            {
+                                this.log('HTTP get ac status function failed: %s', error.message,url);
+                                done(null,undefined);
+                            }
+                            else
+                            {
+                                done(null, body);
+                            }
+                        }.bind(this))
+                }.bind(this), {
+                    longpolling:true,
+                    interval:that.refresh_interval,
+                    longpollEventName:"acpowerpoll"
+                });
+
+                this.acpoweremitter.on("acpowerpoll",function(data){
+                    console.log(data);
+                    if(data) {
+                        try{
+                            if(data.toString().toLowerCase() == 'false'){
+                                that.getmodelever = 0;
+                                service.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.OFF);
+                                that.acfanService.setCharacteristic(Characteristic.On,false);
+                            }else{
+                                that.acfanService.setCharacteristic(Characteristic.On,true);
+                            }
+                        }catch (e){
+
+                        }
+
+                    }
+                }.bind(this));
+
+                this.acpoweremitter.on("err", function(err) {
+                    console.log(err);
+                });
+
+
+            }else{
+                this.log("service not init")
+            }
         },
 
         identify: function(callback)
@@ -1744,7 +1607,7 @@ HttpAccessory.prototype =
         getServices: function()
         {
             var that = this;
-            that.log('getServices');
+            that.log('get ' + this.serviceName +' Services');
 
             // you can OPTIONALLY create an information service if you wish to override
             // the default values for things like serial number, model, etc.
@@ -1755,61 +1618,98 @@ HttpAccessory.prototype =
                 .setCharacteristic(Characteristic.Model, this.model)
                 .setCharacteristic(Characteristic.SerialNumber, this.serial);
 
-            switch (this.service)
+            switch (this.serviceName)
             {
                 case "Switch":
                 {
                     this.switchService = new Service.Switch(this.name);
-                    switch (this.switchHandling)
-                    {
-                        //Power Polling
-                        case "yes":
-                        case "realtime":
-                            this.switchService
-                                .getCharacteristic(Characteristic.On)
-                                .on('get', function(callback){ callback(null,that.state)})
-                                .on('set', this.setPowerState.bind(this));
-                            break;
-                        default	:
-                            this.switchService
-                                .getCharacteristic(Characteristic.On)
-                                .on('set', this.setPowerState.bind(this));
-                            break;
-                    }
-                    return [this.switchService];
+                    this.getStatus(this.serviceName,this.switchService,this.request_power_url);
+                    this.switchService
+                        .getCharacteristic(Characteristic.On)
+                        .on('get', function(callback){
+                            that.log("switch get status")
+                            if(that.getpowerstatus == 'true'){
+                                callback(null,true)
+                            }else {
+                                callback(null,false)
+                            }
+                        })
+                        .on('set', that.setPowerState.bind(this));
+
+                    return [informationService,this.switchService];
+                    break;
                 }
 
+                case "Outlet":
+                    this.outletService = new Service.Outlet(this.name);
+                    this.getStatus(this.serviceName,this.outletService,this.request_power_url);
+                    this.outletService
+                        .getCharacteristic(Characteristic.On)
+                        .on('get', function(callback){
+                            that.log("Outlet get status");
+                            if(that.getpowerstatus == 'true'){
+                                callback(null,true)
+                            }else {
+                                callback(null,false)
+                            }
+
+                        })
+                        .on('set', that.setPowerState.bind(this))
+                        // .setValue(this.getpowerstatus);
+
+                    // that.outletService.getCharacteristic(Characteristic.On).setValue(status);
+
+
+                    return [informationService,this.outletService];
+
+                    break;
+
                 case "Light":
+                {
+                    this.lightService = new Service.Lightbulb(this.name);
+                    this.lightService
+                        .getCharacteristic(Characteristic.On)
+                        .on('get', function(callback){
+                            that.log("Light get status")
+                            if(that.getpowerstatus == 'true'){
+                                callback(null,true)
+                            }else {
+                                callback(null,false)
+                            }
+                        })
+                        .on('set', that.setPowerState.bind(this));
+
+                    this.getStatus(this.serviceName,this.lightService,this.request_power_url);
+                    return [informationService, this.lightService];
+
+                    break;
+                }
                 case "Dimmer":
                 {
-                    this.lightbulbService = new Service.Lightbulb(this.name);
-                    switch (this.switchHandling)
-                    {
-                        //Power Polling
-                        case "yes" :
-                        case "realtime" :
-                            this.lightbulbService
-                                .getCharacteristic(Characteristic.On)
-                                .on('get', function(callback){ callback(null,that.state||that.currentlevel>0)})
-                                .on('set', this.setPowerState.bind(this));
-                            break;
-                        default:
-                            this.lightbulbService
-                                .getCharacteristic(Characteristic.On)
-                                .on('set', this.setPowerState.bind(this));
-                            break;
-                    }
+                    this.dimmerService = new Service.Lightbulb(this.name);
+                    this.dimmerService
+                        .getCharacteristic(Characteristic.On)
+                        // .on('get', function(callback){
+                        //     that.log("dimmer get status")
+                        //     if(that.getpowerstatus == 'true'){
+                        //         callback(null,true)
+                        //     }else {
+                        //         callback(null,false)
+                        //     }
+                        // })
+                        .on('set', that.setDimmerState.bind(this));
 
                     // Brightness Polling
-                    if (this.brightnessHandling == "realtime" || this.brightnessHandling == "yes")
-                    {
-                        this.lightbulbService
-                            .addCharacteristic(new Characteristic.Brightness())
-                            .on('get', function(callback) {callback(null,that.currentlevel)})
-                            .on('set', this.setBrightness.bind(this));
-                    }
-
-                    return [informationService, this.lightbulbService];
+                    this.dimmerService
+                        .addCharacteristic(new Characteristic.Brightness())
+                        .on('get', function(callback) {
+                            that.log("dimmer get brightness")
+                            callback(null,that.getbrightnesslever)
+                        })
+                        .on('set', that.setBrightness.bind(this));
+                    // this.getStatus(this.serviceName,this.dimmerService,this.request_power_url);
+                    this.getBrightness(this.serviceName,this.dimmerService,this.request_brightness_url);
+                    return [informationService, this.dimmerService];
                     break;
                 }
 
@@ -1818,16 +1718,26 @@ HttpAccessory.prototype =
                     this.doorService = new Service.Door(this.name);
                     this.doorService
                         .getCharacteristic(Characteristic.CurrentPosition)
-                        .on('get', function(callback) {callback(null,that.state?0:100)});
+                        .on('get', function(callback) {
+                            if(that.getpowerstatus == 'true'){
+                                callback(null,true)
+                            }else {
+                                callback(null,false)
+                            }
+                        });
 
                     this.doorService
                         .getCharacteristic(Characteristic.TargetPosition)
-                        .on('get', function(callback) {callback(null,that.state?0:100)})
-                        .on('set', this.setPowerState.bind(this));
+                        .on('get', function(callback) {
+                            callback(null,that.getpowerstatus)
+                        })
+                        .on('set', that.setPowerState.bind(this));
 
                     this.doorService
                         .getCharacteristic(Characteristic.PositionState)
-                        .on('get', function(callback) {callback(null,2)});
+                        .on('get', function(callback) {
+                            callback(null,2)
+                        });
 
                     return [informationService, this.doorService];
                     break;
@@ -1838,38 +1748,50 @@ HttpAccessory.prototype =
                     this.windowService = new Service.Window(this.name);
                     this.windowService
                         .getCharacteristic(Characteristic.CurrentPosition)
-                        .on('get', function(callback) {callback(null,that.state?0:100)});
+                        .on('get', function(callback) {
+                            if(that.getpowerstatus == 'true'){
+                                callback(null,true)
+                            }else {
+                                callback(null,false)
+                            }
+                        });
 
                     this.windowService
                         .getCharacteristic(Characteristic.TargetPosition)
-                        .on('get', function(callback) {callback(null,that.state?0:100)})
-                        .on('set', this.setPowerState.bind(this));
+                        .on('get', function(callback) {
+                            callback(null,that.getpowerstatus)
+                        })
+                        .on('set', that.setPowerState.bind(this));
 
                     this.windowService
                         .getCharacteristic(Characteristic.PositionState)
-                        .on('get', function(callback) {callback(null,2)});
+                        .on('get', function(callback) {
+                            callback(null,2)
+                        });
 
                     return [informationService, this.windowService];
                     break;
                 }
 
-                case "Garage Door":
+                case "GarageDoor":
                 {
-                    this.garageService = new Service.GarageDoorOpener(this.name);
-                    this.garageService
+                    this.garageDoorService = new Service.GarageDoorOpener(this.name);
+                    this.garageDoorService
                         .getCharacteristic(Characteristic.CurrentDoorState)
-                        .on('get', function(callback) {callback(null,that.state?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN)});
+                        .on('get', function(callback) {
+                            callback(null,that.getgaragedoorstatus.toString().toLowerCase() !='true'?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN)});
 
-                    this.garageService
+                    this.garageDoorService
                         .getCharacteristic(Characteristic.TargetDoorState)
-                        .on('get', function(callback) {callback(null,that.targetGarageDoorState)})
-                        .on('set', this.setPowerState.bind(this));
+                        .on('set', that.setGarageDoorState.bind(this));
 
-                    this.garageService
+                    this.garageDoorService
                         .getCharacteristic(Characteristic.ObstructionDetected)
-                        .on('get', function(callback) {callback(null,false)});
-
-                    return [informationService, this.garageService];
+                        .on('get', function(callback) {
+                            callback(null,false)
+                        });
+                    this.getGarageDoorStatus(this.serviceName,this.garageDoorService,this.request_garagedoor_url);
+                    return [informationService, this.garageDoorService];
                     break;
                 }
 
@@ -1878,54 +1800,62 @@ HttpAccessory.prototype =
                     this.lockService = new Service.LockMechanism(this.name);
                     this.lockService
                         .getCharacteristic(Characteristic.LockCurrentState)
-                        .on('get', function(callback) {callback(null,!that.state?Characteristic.LockCurrentState.SECURED:Characteristic.LockCurrentState.UNSECURED)});
+                        .on('get', function(callback) {
+                            callback(null,that.getlockstatus.toString().toLowerCase() !='true'?Characteristic.LockCurrentState.SECURED:Characteristic.LockCurrentState.UNSECURED)
+                        });
+
 
                     this.lockService
                         .getCharacteristic(Characteristic.LockTargetState)
-                        .on('get', function(callback) {callback(null,!that.state?Characteristic.LockCurrentState.SECURED:Characteristic.LockCurrentState.UNSECURED)})
-                        .on('set', this.setPowerState.bind(this));
+                        .on('set', that.setLockState.bind(this));
 
+
+                    this.getLockStatus(this.serviceName,this.lockService,this.request_lockstatus_url);
                     return [informationService, this.lockService];
                     break;
                 }
 
                 case "Contact":
                 {
-                    this.contactService = new Service.ContactSensor(this.name);
-                    this.contactService
-                        .getCharacteristic(Characteristic.ContactSensorState)
-                        .on('get', function(callback) {
-                            callback(null,that.state?Characteristic.ContactSensorState.CONTACT_DETECTED:Characteristic.ContactSensorState.CONTACT_NOT_DETECTED)
-                        });
-
-                    return [informationService, this.contactService];
+                    // this.contactService = new Service.ContactSensor(this.name);
+                    // this.contactService
+                    //     .getCharacteristic(Characteristic.ContactSensorState)
+                    //     .on('get', function(callback) {
+                    //         callback(null,that.state?Characteristic.ContactSensorState.CONTACT_DETECTED:Characteristic.ContactSensorState.CONTACT_NOT_DETECTED)
+                    //     });
+                    //
+                    // return [informationService, this.contactService];
+                    //
+                    // this.getStatus(this.serviceName,this.curtainService,this.request_power_url);
                     break;
                 }
 
                 case "Doorbell":
                 {
-                    this.cameraService = new Service.CameraRTPStreamManagement(this.name);
-                    this.doorbellService = new Service.Doorbell(this.name);
-                    this.doorbellService
-                        .getCharacteristic(Characteristic.ProgrammableSwitchEvent)
-                        .on('get', function(callback) {
-                            callback(null,that.lastSent?1:0)});
-
-                    if( this.include_video )
-                        return [informationService, this.doorbellService, this.cameraService];
-                    else
-                        return [informationService, this.doorbellService];
+                    // this.cameraService = new Service.CameraRTPStreamManagement(this.name);
+                    // this.doorbellService = new Service.Doorbell(this.name);
+                    // this.doorbellService
+                    //     .getCharacteristic(Characteristic.ProgrammableSwitchEvent)
+                    //     .on('get', function(callback) {
+                    //         callback(null,that.lastSent?1:0)});
+                    //
+                    // if( this.include_video )
+                    //     return [informationService, this.doorbellService, this.cameraService];
+                    // else
+                    //     return [informationService, this.doorbellService];
                     break;
                 }
 
                 case "Motion":
                 {
-                    this.motionService = new Service.MotionSensor(this.name);
-                    this.motionService
-                        .getCharacteristic(Characteristic.MotionDetected)
-                        .on('get', function(callback) { callback(null,!that.state)});
+                    // this.montionService = new Service.MotionSensor(this.name);
+                    // this.montionService
+                    //     .getCharacteristic(Characteristic.MotionDetected)
+                    //     .on('get', function(callback) {
+                    //         callback(null,!that.state)
+                    //     });
 
-                    return [informationService, this.motionService];
+                    return [informationService, this.montionService];
                     break;
                 }
 
@@ -1934,110 +1864,200 @@ HttpAccessory.prototype =
                     this.fanService = new Service.Fan(this.name);
                     this.fanService
                         .getCharacteristic(Characteristic.On)
-                        .on('get', function(callback) {callback(null,that.state)})
-                        .on('set', this.setPowerState.bind(this));
+                        .on('get', function(callback) {
+                            if(that.getpowerstatus == 'true'){
+                                callback(null,true)
+                            }else {
+                                callback(null,false)
+                            }
+                        })
+                        .on('set', that.setPowerState.bind(this));
 
-                    // Brightness Polling
-                    if (this.brightnessHandling == "realtime" || this.brightnessHandling == "yes")
-                    {
-                        this.fanService
-                            .addCharacteristic(new Characteristic.RotationSpeed())
-                            .on('get', function(callback) {callback(null,that.currentlevel*25)})
-                            .on('set', this.setBrightness.bind(this))
-                            .setProps({minStep:25});
-                    }
+                    this.fanService
+                        .addCharacteristic(new Characteristic.RotationSpeed())
+                        .on('get', function(callback) {
+                            callback(null,that.getfanspeedlever)
+                        })
+                        .on('set', that.setFanSpeed.bind(this))
+                        .setProps({
+                                minStep:25
+                            });
 
+                    this.getStatus(this.serviceName,this.fanService,this.request_power_url);
+                    this.getFanSpeed(this.serviceName,this.fanService,this.request_fanspeed_url)
                     return [informationService, this.fanService];
                     break;
                 }
 
                 case "Security":
                 {
-                    this.securityService = new Service.SecuritySystem(this.name);
-                    this.securityService
-                        .getCharacteristic(Characteristic.SecuritySystemCurrentState)
-                        .on('get', function(callback) {callback(null,that.secCurState)});
-
-                    this.securityService
-                        .getCharacteristic(Characteristic.SecuritySystemTargetState)
-                        .on('get', function(callback) {callback(null,that.secTarState)})
-                        .on('set', this.setSecurityState.bind(this));
-
-                    return [informationService, this.securityService];
+                    // this.securityService = new Service.SecuritySystem(this.name);
+                    // this.securityService
+                    //     .getCharacteristic(Characteristic.SecuritySystemCurrentState)
+                    //     .on('get', function(callback) {callback(null,that.secCurState)});
+                    //
+                    // this.securityService
+                    //     .getCharacteristic(Characteristic.SecuritySystemTargetState)
+                    //     .on('get', function(callback) {callback(null,that.secTarState)})
+                    //     .on('set', that.setSecurityState.bind(this));
+                    //
+                    // return [informationService, this.securityService];
                     break;
                 }
 
                 case "Thermostat":
                 {
-                    this.thermostatService = new Service.Thermostat(this.name);
-                    this.thermostatService
-                        .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
-                        .on('get', function(callback) { that.log("Thermostat get current state: "+that.thermStatus); callback(null,that.thermStatus)});
+                    break;
+                }
 
-                    this.thermostatService
+                case "AC":
+                {
+                    this.acService = new Service.Thermostat(this.name);
+
+                    this.acService
+                        .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
+                        .on('get', function(callback) {
+                            that.log("Thermostat get current state: "+that.getmodelever);
+                            callback(null,that.getmodelever)
+                        });
+
+                    this.acService
                         .getCharacteristic(Characteristic.TargetHeatingCoolingState)
-                        .on('get', function(callback) { that.log("Thermostat get target state: "+that.thermTarState); callback(null,that.thermTarState)})
+                        .on('get', function(callback) {
+                            that.log("Thermostat get target state: "+that.setmodelever);
+                            callback(null,that.setmodelever)
+                        })
                         .on('set', this.setThermostatTargetHeatingCoolingState.bind(this));
 
-                    this.thermostatService
+                    this.acService
                         .getCharacteristic(Characteristic.CurrentTemperature)
-                        .on('get', function(callback) { that.log("Thermostat get current temp: "+that.thermCurrentTemp); callback(null,that.thermCurrentTemp)});
+                        .on('get', function(callback) {
+                            that.log("Thermostat get current temp: "+that.gettemperaturelever);
+                            callback(null,that.gettemperaturelever)
+                        });
 
-                    this.thermostatService
+                    this.acService
                         .getCharacteristic(Characteristic.TargetTemperature)
                         .on('get', function(callback)
                         {
-                            that.log("Thermostat get target temp "+that.thermCurState);
-                            if( that.thermTarState == Characteristic.TargetHeatingCoolingState.OFF ||
-                                that.thermTarState == Characteristic.TargetHeatingCoolingState.AUTO )
-                            {
-                                that.log("Temp from off mode");
-                                //Need to adjust the state here because HomeKit doesn't allow a current state of auto.
-                                var state = Characteristic.TargetHeatingCoolingState.OFF;
-                                if( that.thermCurrentTemp != -100 && that.thermCoolSet != -100 && that.thermHeatSet != -100 )
-                                {
-                                    var coolDiff = that.thermCurrentTemp - that.thermCoolSet;
-                                    if( coolDiff < 0 )
-                                        coolDiff = coolDiff*-1;
-
-                                    var heatDiff = that.thermCurrentTemp - that.thermHeatSet;
-                                    if( heatDiff < 0 )
-                                        heatDiff = heatDiff*-1;
-
-                                    if( coolDiff < heatDiff )
-                                        state = Characteristic.TargetHeatingCoolingState.COOL;
-                                    else
-                                        state = Characteristic.TargetHeatingCoolingState.HEAT;
-                                }
-
-                                if( state == Characteristic.TargetHeatingCoolingState.COOL )
-                                {
-                                    that.log("Sending "+that.thermCoolSet);
-                                    callback(null,that.thermCoolSet);
-                                }
-                                else
-                                {
-                                    that.log("Sending "+that.thermHeatSet);
-                                    callback(null,that.thermHeatSet);
-                                }
-                            }
-
-                            else if( that.thermTarState == Characteristic.TargetHeatingCoolingState.COOL )
-                            { that.log("Sending "+that.thermCoolSet); callback(null,that.thermCoolSet)}
-
-                            else if( that.thermTarState == Characteristic.TargetHeatingCoolingState.HEAT )
-                            { that.log("Sending "+that.thermHeatSet); callback(null,that.thermHeatSet)}
-
-                            else { that.log("What?"); }
+                            that.log("Thermostat get current temp: "+that.settemperaturelever);
+                            callback(null,that.settemperaturelever)
                         })
-                        .on('set', this.setThermostatTargetTemp.bind(this));
+                        .on('set', that.setThermostatTargetTemp.bind(this));
 
-                    this.thermostatService
+                    this.acService
                         .getCharacteristic(Characteristic.TemperatureDisplayUnits)
-                        .on('get', function(callback) {callback(null,that.thermDisplayUnits)})
-                        .on('set', function(state,callback) { that.thermDisplayUnits = state; callback(); });
+                        .on('get', function(callback) {
+                            callback(null,true)
+                        })
+                        .on('set', function(state,callback) {
+                            that.thermDisplayUnits = true;
+                            callback();
+                        });
 
-                    return [informationService, this.thermostatService];
+                    this.acfanService = new Service.Fan(this.name);
+                    this.acfanService
+                        .getCharacteristic(Characteristic.On)
+                        .on('get', function(callback) {
+                            if(that.getpowerstatus == 'true'){
+                                callback(null,true)
+                            }else {
+                                callback(null,false)
+                            }
+                        })
+                        .on('set', that.setPowerState.bind(this));
+                    this.acfanService
+                        .addCharacteristic(new Characteristic.RotationSpeed())
+                        .on('set', that.setACFanSpeed.bind(this))
+                        .setProps({
+                            minStep:25
+                        });
+
+                    this.getACStatus(this.serviceName,this.acService,this.request_power_url);
+
+
+                    this.getThermostatHeatingCoolingState(this.serviceName,this.acService,this.request_mode_url)
+                    this.getThermostatTemp(this.serviceName,this.acService,this.request_temperature_url)
+                    this.getCurrentTemp(this.serviceName,this.acService,this.request_currenttemp_url)
+
+                    this.getFanSpeed(this.serviceName,this.acfanService,this.request_fanspeed_url)
+                    return [informationService, this.acService,this.acfanService];
+                    break;
+                }
+                case "FloorHeater":
+                {
+                    this.floorHeaterService = new Service.Thermostat(this.name);
+                    this.floorHeaterService
+                        .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
+                        .on('get', function(callback) {
+                            that.log("Thermostat get current state: 2");
+                            callback(null,that.getmodelever)
+                        });
+
+                    this.floorHeaterService
+                        .getCharacteristic(Characteristic.TargetHeatingCoolingState)
+                        .on('get', function(callback) {
+                            that.log("Thermostat get current state: 2");
+                            callback(null,that.getmodelever)
+                        })
+                        .on('set', that.setFloorHeaterStatus.bind(this));
+
+                    this.floorHeaterService
+                        .getCharacteristic(Characteristic.CurrentTemperature)
+                        .on('get', function(callback) {
+                            that.log("FloorHeater get current temp: "+that.gettemperaturelever);
+                            callback(null,that.gettemperaturelever)
+                        });
+
+                    this.floorHeaterService
+                        .getCharacteristic(Characteristic.TargetTemperature)
+                        .on('get', function(callback) {
+                            that.log("FloorHeater get target temp "+that.settemperaturelever);
+                            callback(null,that.settemperaturelever);
+                        })
+                        .on('set', that.setThermostatTargetTemp.bind(this));
+
+                    this.floorHeaterService
+                        .getCharacteristic(Characteristic.TemperatureDisplayUnits)
+                        .on('get', function(callback) {
+                            callback(null,true)
+                        })
+                        .on('set', function(state,callback) {
+                            that.thermDisplayUnits = true;
+                            callback();
+                        });
+
+                    this.getFloorHeaterStatus(this.serviceName,this.floorHeaterService,this.request_power_url);
+                    this.getThermostatTemp(this.serviceName,this.floorHeaterService,this.request_temperature_url)
+                    this.getCurrentTemp(this.serviceName,this.floorHeaterService,this.request_currenttemp_url)
+                    return [informationService, this.floorHeaterService];
+                    break;
+                }
+
+                case "Curtain":
+                {
+                    this.curtainService = new Service.WindowCovering(this.name);
+                    this.curtainService
+                        .getCharacteristic(Characteristic.CurrentPosition)
+                        .on('get', function(callback) {
+                            callback(null,that.getcurtainlever)
+                        });
+
+                    this.curtainService
+                        .getCharacteristic(Characteristic.TargetPosition)
+                        // .on('get', function(callback) {
+                        //     callback(null,that.setcurtainlever)
+                        // })
+                        .on('set', this.setCurtainState.bind(this));
+
+                    this.curtainService
+                        .getCharacteristic(Characteristic.PositionState)
+                        .on('get', function(callback) {
+                            callback(null,0)
+                        });
+
+                    this.getCurtainStatus(this.serviceName,this.curtainService,this.request_curtainposition_url);
+                    return [informationService, this.curtainService];
                     break;
                 }
             }
