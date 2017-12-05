@@ -800,13 +800,13 @@ HttpAccessory.prototype =
                         else
                         {
                             // that.log('HTTP curtain function succeeded!',body);
-                            if(level > 0){
-                                that.curtainService.setCharacteristic(Characteristic.CurrentPosition,level);s
-
-                            }else {
-                                that.curtainService.setCharacteristic(Characteristic.CurrentPosition,0);
-
-                            }
+                            // if(level > 0){
+                            //     that.curtainService.setCharacteristic(Characteristic.TargetPosition,level);
+                            //
+                            // }else {
+                            //     that.curtainService.setCharacteristic(Characteristic.TargetPosition,0);
+                            //
+                            // }
                             callback();
                         }
                     });
@@ -1306,9 +1306,9 @@ HttpAccessory.prototype =
                     {
                         if(data){
                             var currentlevel = 100 - parseInt(data);
-                            // that.getcurtainlever = currentlevel;
+                            that.getcurtainlever = currentlevel;
                             // this.log(servicename, "received curtain",url, "level is currently", currentlevel);
-                            service.setCharacteristic(Characteristic.TargetPosition,currentlevel);
+                            service.setCharacteristic(Characteristic.CurrentPosition,currentlevel);
                         }
 
                     }.bind(this));
@@ -2046,9 +2046,9 @@ HttpAccessory.prototype =
 
                     this.curtainService
                         .getCharacteristic(Characteristic.TargetPosition)
-                        .on('get', function(callback) {
-                            callback(null,that.setcurtainlever)
-                        })
+                        // .on('get', function(callback) {
+                        //     callback(null,that.setcurtainlever)
+                        // })
                         .on('set', this.setCurtainState.bind(this));
 
                     this.curtainService
