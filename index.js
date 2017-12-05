@@ -801,10 +801,10 @@ HttpAccessory.prototype =
                         {
                             // that.log('HTTP curtain function succeeded!',body);
                             if(level > 0){
-                                that.curtainService.getCharacteristic(Characteristic.CurrentPosition).setValue(level);
+                                that.curtainService.setCharacteristic(Characteristic.CurrentPosition,level);s
 
                             }else {
-                                that.curtainService.getCharacteristic(Characteristic.CurrentPosition).setValue(0);
+                                that.curtainService.setCharacteristic(Characteristic.CurrentPosition,0);
 
                             }
                             callback();
