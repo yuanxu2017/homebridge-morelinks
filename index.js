@@ -2046,9 +2046,9 @@ HttpAccessory.prototype =
 
                     this.curtainService
                         .getCharacteristic(Characteristic.TargetPosition)
-                        // .on('get', function(callback) {
-                        //     callback(null,that.setcurtainlever)
-                        // })
+                        .on('get', function(callback) {
+                            callback(null,that.getcurtainlever)
+                        })
                         .on('set', this.setCurtainState.bind(this));
 
                     this.curtainService
