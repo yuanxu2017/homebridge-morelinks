@@ -286,7 +286,7 @@ function HttpAccessory(log, config)
     this.getbrightnesslever  = 0;
     this.gettemperaturelever = 0;
     this.getmodelever        = 0;
-    this.getcurtainlever     = 50;
+    this.getcurtainlever     = 0;
     this.getlockstatus       = false;
     this.getgaragedoorstatus = false;
     this.gettemperature      = 16;
@@ -295,7 +295,7 @@ function HttpAccessory(log, config)
     this.setbrightnesslever  = 0;
     this.settemperaturelever = 16;
     this.setmodelever        = 0;
-    this.setcurtainlever     = 50;
+    this.setcurtainlever     = 0;
     this.setlockstatus       = false;
     this.setgaragedoorstatus = false;
     this.settemperature      = 16;
@@ -1306,7 +1306,7 @@ HttpAccessory.prototype =
                     {
                         if(data){
                             var currentlevel = 100 - parseInt(data);
-                            that.getcurtainlever = currentlevel;
+                            // that.getcurtainlever = currentlevel;
                             // this.log(servicename, "received curtain",url, "level is currently", currentlevel);
                             service.setCharacteristic(Characteristic.TargetPosition,currentlevel);
                         }
@@ -2047,7 +2047,7 @@ HttpAccessory.prototype =
                     this.curtainService
                         .getCharacteristic(Characteristic.TargetPosition)
                         .on('get', function(callback) {
-                            callback(null,that.getcurtainlever)
+                            callback(null,that.setcurtainlever)
                         })
                         .on('set', this.setCurtainState.bind(this));
 
