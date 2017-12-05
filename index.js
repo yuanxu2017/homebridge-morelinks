@@ -1306,6 +1306,7 @@ HttpAccessory.prototype =
                     {
                         if(data){
                             var currentlevel = 100 - parseInt(data);
+                            that.getcurtainlever = currentlevel;
                             // this.log(servicename, "received curtain",url, "level is currently", currentlevel);
                             service.setCharacteristic(Characteristic.TargetPosition,currentlevel);
                         }
