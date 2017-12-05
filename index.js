@@ -1107,9 +1107,9 @@ HttpAccessory.prototype =
                             // this.log("received power",url, "state is currently", this.getpowerstatus);
                                     // this.enableSet = false;
                                     if(data.toString().toLowerCase() == 'true'){
-                                        service.getCharacteristic(Characteristic.On).setValue(true);
+                                        service.setCharacteristic(Characteristic.On,true);
                                     }else {
-                                        service.getCharacteristic(Characteristic.On).setValue(false);
+                                        service.setCharacteristic(Characteristic.On,false);
                                     }
                         }
                     }.bind(this));
@@ -1271,7 +1271,7 @@ HttpAccessory.prototype =
 
                             // console.log(data)
                             // this.log(servicename, "received fan speed",url, "level is currently", currentlevel);
-                            service.getCharacteristic(Characteristic.RotationSpeed).setValue(currentlevel);
+                            service.setCharacteristic(Characteristic.RotationSpeed,currentlevel);
                         }
 
                     }.bind(this));
@@ -1307,7 +1307,7 @@ HttpAccessory.prototype =
                         if(data){
                             var currentlevel = 100 - parseInt(data);
                             // this.log(servicename, "received curtain",url, "level is currently", currentlevel);
-                            service.getCharacteristic(Characteristic.TargetPosition).updateValue(currentlevel);
+                            service.setCharacteristic(Characteristic.TargetPosition,currentlevel);
                         }
 
                     }.bind(this));
@@ -1346,11 +1346,11 @@ HttpAccessory.prototype =
 
                         // this.log("received lock",url, "state is currently", this.getlockstatus);
                         if(data.toString().toLowerCase() == 'true'){
-                            service.getCharacteristic(Characteristic.LockCurrentState).setValue(Characteristic.LockCurrentState.UNSECURED);
-                            service.getCharacteristic(Characteristic.LockTargetState).setValue(Characteristic.LockTargetState.UNSECURED);
+                            service.setCharacteristic(Characteristic.LockCurrentState,Characteristic.LockCurrentState.UNSECURED);
+                            service.setCharacteristic(Characteristic.LockTargetState,Characteristic.LockTargetState.UNSECURED);
                         }else {
-                            service.getCharacteristic(Characteristic.LockCurrentState).setValue(Characteristic.LockCurrentState.SECURED);
-                            service.getCharacteristic(Characteristic.LockTargetState).setValue(Characteristic.LockTargetState.SECURED);
+                            service.setCharacteristic(Characteristic.LockCurrentState,Characteristic.LockCurrentState.SECURED);
+                            service.setCharacteristic(Characteristic.LockTargetState,Characteristic.LockTargetState.SECURED);
                         }
                     }
                 }.bind(this));
@@ -1397,9 +1397,9 @@ HttpAccessory.prototype =
 
                         // this.log("received Garage Door",url, "state is currently", this.getgaragedoorstatus);
                         if(data.toString().toLowerCase() == 'true'){
-                            service.getCharacteristic(Characteristic.CurrentDoorState).setValue(Characteristic.CurrentDoorState.OPEN);
+                            service.setCharacteristic(Characteristic.CurrentDoorState,Characteristic.CurrentDoorState.OPEN);
                         }else {
-                            service.getCharacteristic(Characteristic.CurrentDoorState).setValue(Characteristic.CurrentDoorState.CLOSED);
+                            service.setCharacteristic(Characteristic.CurrentDoorState,Characteristic.CurrentDoorState.CLOSED);
                         }
                     }
                 }.bind(this));
@@ -1442,7 +1442,7 @@ HttpAccessory.prototype =
                             var currentlevel = parseInt(data);
                             this.settemperaturelever = currentlevel;
                             // this.log(servicename, "received Target Temperature",url, "level is currently", currentlevel);
-                            service.getCharacteristic(Characteristic.TargetTemperature).setValue(currentlevel);
+                            service.setCharacteristic(Characteristic.TargetTemperature,currentlevel);
                             // service.getCharacteristic(Characteristic.On).setValue(state);
                         }
 
@@ -1478,7 +1478,7 @@ HttpAccessory.prototype =
                             var currentlevel = parseInt(data);
                             this.gettemperaturelever = currentlevel;
                             // this.log(servicename, "received Current Temperature",url, "level is currently", currentlevel);
-                            service.getCharacteristic(Characteristic.CurrentTemperature).setValue(currentlevel);
+                            service.setCharacteristic(Characteristic.CurrentTemperature,currentlevel);
                             // service.getCharacteristic(Characteristic.On).setValue(state);
                         }
 
