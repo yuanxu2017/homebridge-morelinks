@@ -4,6 +4,8 @@ var pollingtoevent = require('polling-to-event');
 var deviceType = require("./DeviceType.json");
 var Accessory, Service, Characteristic, UUIDGen;
 
+var ver = "v0.2.12";
+
 module.exports = function(homebridge) {
     console.log("morelinks homebridge API version: " + homebridge.version);
 
@@ -25,7 +27,7 @@ module.exports = function(homebridge) {
 // config may be null
 // api may be null if launched from old homebridge version
 function SamplePlatform(log, config, api) {
-    log("MoreLinks Platform Init");
+    log("MoreLinks Platform Init, Version:",ver);
     var platform = this;
     this.log = log;
     this.config = config;
@@ -286,7 +288,7 @@ function HttpAccessory(log, config)
     this.getbrightnesslever  = 0;
     this.gettemperaturelever = 0;
     this.getmodelever        = 0;
-    this.getcurtainlever     = 0;
+    this.getcurtainlever     = 50;
     this.getlockstatus       = false;
     this.getgaragedoorstatus = false;
     this.gettemperature      = 16;
@@ -295,7 +297,7 @@ function HttpAccessory(log, config)
     this.setbrightnesslever  = 0;
     this.settemperaturelever = 16;
     this.setmodelever        = 0;
-    this.setcurtainlever     = 0;
+    this.setcurtainlever     = 50;
     this.setlockstatus       = false;
     this.setgaragedoorstatus = false;
     this.settemperature      = 16;
@@ -338,7 +340,7 @@ function HttpAccessory(log, config)
             // this.getStatus(this.serviceName,this.dimmerService,this.request_power_url);
             this.request_brightness_url = this.base_url + "/get/" + this.brightnessnum;
             // this.getBrightness(this.serviceName,this.dimmerService,this.request_brightness_url);
-
+            
             break;
         case "Outlet":
             this.switchon  = deviceType[this.serviceName].switchon;
@@ -578,6 +580,33 @@ HttpAccessory.prototype =
                 {
                     url = that.set_brightness_url.replace("%n", 0);
 
+                this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
+                    function(error, response, responseBody)
+                    {
+                        if (error)
+                        {
+                            this.log('HTTP set power function failed: %s,%s', error.message);
+                            callback(error);
+                        }
+                        else
+                        {
+                            // this.log('HTTP set power function succeeded!',this.serviceName,responseBody);
+                            callback();
+                        }
+                    }.bind(this));
+
+                }else
+                {
+                    // url = this.set_dimmerpower_url + "/true";
+                    // body = "";
+                    if(this.getpowerstatus == false){
+
+
+                    if(this.getbrightnesslever == 0){
+                        this.getbrightnesslever = 100;
+                    }
+
+                    url = that.set_brightness_url.replace("%n", this.getbrightnesslever);
                     this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
                         function(error, response, responseBody)
                         {
@@ -592,33 +621,6 @@ HttpAccessory.prototype =
                                 callback();
                             }
                         }.bind(this));
-
-                }else
-                {
-                    // url = this.set_dimmerpower_url + "/true";
-                    // body = "";
-                    if(this.getpowerstatus == false){
-
-
-                        if(this.getbrightnesslever == 0){
-                            this.getbrightnesslever = 100;
-                        }
-
-                        url = that.set_brightness_url.replace("%n", this.getbrightnesslever);
-                        this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
-                            function(error, response, responseBody)
-                            {
-                                if (error)
-                                {
-                                    this.log('HTTP set power function failed: %s,%s', error.message);
-                                    callback(error);
-                                }
-                                else
-                                {
-                                    // this.log('HTTP set power function succeeded!',this.serviceName,responseBody);
-                                    callback();
-                                }
-                            }.bind(this));
                     }else {
                         callback();
                     }
@@ -658,8 +660,8 @@ HttpAccessory.prototype =
                     url = this.set_fanspeed_url + "/3";
                 }
 
-                body = ""
-                // this.log("Setting fan speed to %s",fanSpeed,url,this.http_method);
+                    body = ""
+                    // this.log("Setting fan speed to %s",fanSpeed,url,this.http_method);
 
                 this.httpRequest(url, body, this.http_method, this.username, this.password, this.sendimmediately,
                     function(error, response, responseBody)
@@ -739,39 +741,39 @@ HttpAccessory.prototype =
         {
             var that = this;
 
-            if (this.set_brightness_url)
-            {
-                // that.log.warn('that.getpowerstatus:',that.getpowerstatus,that.getbrightnesslever)
-                var url
-                if(that.getpowerstatus == false && (level == 100)){
-                    url = that.set_brightness_url.replace("%n", this.getbrightnesslever);
+                if (this.set_brightness_url)
+                {
+                    // that.log.warn('that.getpowerstatus:',that.getpowerstatus,that.getbrightnesslever)
+                    var url
+                    if(that.getpowerstatus == false && (level == 100)){
+                        url = that.set_brightness_url.replace("%n", this.getbrightnesslever);
+                    }else {
+                        url = that.set_brightness_url.replace("%n", level);
+                    }
+
+                    // url = that.set_brightness_url.replace("%n", level);
+
+                    // that.log("Setting brightness to %s", level,url);
+
+                    that.httpRequest(url, "", that.http_method, that.username, that.password, that.sendimmediately,
+                        function(error, response, body)
+                        {
+                            if (error)
+                            {
+                                that.log('HTTP brightness function failed: %s', error);
+                                callback(error);
+                            }
+                            else
+                            {
+                                // that.log('HTTP brightness function succeeded!',body);
+                                // that.dimmerService.getCharacteristic(Characteristic.Brightness).setValue(parseInt(body));
+                                callback();
+                            }
+                        });
                 }else {
-                    url = that.set_brightness_url.replace("%n", level);
+                    this.log.warn("Ignoring request; No brightness url defined.");
+                    callback(new Error("No brightness url defined."));
                 }
-
-                // url = that.set_brightness_url.replace("%n", level);
-
-                // that.log("Setting brightness to %s", level,url);
-
-                that.httpRequest(url, "", that.http_method, that.username, that.password, that.sendimmediately,
-                    function(error, response, body)
-                    {
-                        if (error)
-                        {
-                            that.log('HTTP brightness function failed: %s', error);
-                            callback(error);
-                        }
-                        else
-                        {
-                            // that.log('HTTP brightness function succeeded!',body);
-                            // that.dimmerService.getCharacteristic(Characteristic.Brightness).setValue(parseInt(body));
-                            callback();
-                        }
-                    });
-            }else {
-                this.log.warn("Ignoring request; No brightness url defined.");
-                callback(new Error("No brightness url defined."));
-            }
         },
 
         setCurtainState : function (level, callback) {
@@ -828,44 +830,44 @@ HttpAccessory.prototype =
                 var url;
                 var body;
 
-                if (lockstatus == Characteristic.LockTargetState.UNSECURED)
+            if (lockstatus == Characteristic.LockTargetState.UNSECURED)
+            {
+                url = this.set_lockstatus_url + "/true";
+                body = "";
+                // this.log("Setting lock state to on",lockstatus);
+            }
+            else
+            {
+                url = this.set_lockstatus_url + "/false";
+                body = "";
+                // this.log("Setting lock state to off",lockstatus);
+            }
+            that.httpRequest(url, "", that.http_method, that.username, that.password, that.sendimmediately,
+                function(error, response, body)
                 {
-                    url = this.set_lockstatus_url + "/true";
-                    body = "";
-                    // this.log("Setting lock state to on",lockstatus);
-                }
-                else
-                {
-                    url = this.set_lockstatus_url + "/false";
-                    body = "";
-                    // this.log("Setting lock state to off",lockstatus);
-                }
-                that.httpRequest(url, "", that.http_method, that.username, that.password, that.sendimmediately,
-                    function(error, response, body)
+                    if (error)
                     {
-                        if (error)
-                        {
-                            that.log('HTTP lock function failed: %s', error);
-                            callback(error);
+                        that.log('HTTP lock function failed: %s', error);
+                        callback(error);
+                    }
+                    else
+                    {
+                        // that.log('HTTP lock function succeeded!',body);
+
+                        if(lockstatus == Characteristic.LockTargetState.UNSECURED){
+                            that.setlockstatus = false;
+                            that.lockService
+                                .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
+
+                        }else {
+                            that.setlockstatus = true;
+                            that.lockService
+                                .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
+
                         }
-                        else
-                        {
-                            // that.log('HTTP lock function succeeded!',body);
-
-                            if(lockstatus == Characteristic.LockTargetState.UNSECURED){
-                                that.setlockstatus = false;
-                                that.lockService
-                                    .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-
-                            }else {
-                                that.setlockstatus = true;
-                                that.lockService
-                                    .setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.SECURED);
-
-                            }
-                            callback();
-                        }
-                    });
+                        callback();
+                    }
+                });
             }else {
                 this.log.warn("Ignoring request; No lock url defined.");
                 callback("No lock url defined.");
@@ -1044,29 +1046,29 @@ HttpAccessory.prototype =
                 var url;
 
 
-                if( temp <16 ){
-                    temp = 16;
-                }
+            if( temp <16 ){
+                temp = 16;
+            }
 
                 if( temp >35 )
                     temp = 35;
 
                 url = this.set_temperature_url.replace("%n", temp)
 
-                this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
-                    function(error, response, body)
+            this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
+                function(error, response, body)
+                {
+                    if( error )
                     {
-                        if( error )
-                        {
-                            this.log('HTTP Target Temp function failed: %s', error);
-                            callback(error);
-                        }
-                        else
-                        {
-                            // this.log('HTTP Target Temp function succeeded!');
-                            callback();
-                        }
-                    }.bind(this));
+                        this.log('HTTP Target Temp function failed: %s', error);
+                        callback(error);
+                    }
+                    else
+                    {
+                        // this.log('HTTP Target Temp function succeeded!');
+                        callback();
+                    }
+                }.bind(this));
             }else{
                 callback();
             }
@@ -1099,32 +1101,30 @@ HttpAccessory.prototype =
                 });
 
                 this.statusemitter.on("statuspoll",function(data){
-                    // console.log(data);
-                    if(data){
+                        // console.log(data);
+                        if(data){
 
-                        this.getpowerstatus = data;
+                            this.getpowerstatus = data;
 
-                        // this.log("received power",url, "state is currently", this.getpowerstatus);
-                        // this.enableSet = false;
-                        if(data.toString().toLowerCase() == 'true'){
-                            service.getCharacteristic(Characteristic.On).setValue(true);
-                        }else {
-                            service.getCharacteristic(Characteristic.On).setValue(false);
+                            // this.log("received power",url, "state is currently", this.getpowerstatus);
+                                    // this.enableSet = false;
+                            if(data.toString().toLowerCase() == 'true'){
+                                service.updateCharacteristic(Characteristic.On,true);
+                            }else {
+                                service.updateCharacteristic(Characteristic.On,false);
+                            }
                         }
-                    }
-                }.bind(this));
+                    }.bind(this));
 
                 this.statusemitter.on("err", function(err) {
                     console.log(err);
                 });
-
-
             }else{
                 this.log("service not init")
             }
 
         },
-
+        
         getFloorHeaterStatus : function (servicename,service,url) {
             var that = this;
             if(service){
@@ -1159,14 +1159,14 @@ HttpAccessory.prototype =
                         // this.enableSet = false;
                         if(data.toString().toLowerCase() == 'true'){
                             // service.getCharacteristic(Characteristic.CurrentHeatingCoolingState).setValue(Characteristic.CurrentHeatingCoolingState.HEAT);
-                            service.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.HEAT);
+                            service.updateCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.HEAT);
                             // this.getmodelever = Characteristic.CurrentHeatingCoolingState.HEAT;
                             // this.log("received floorheater mode",url, "state is currently", Characteristic.TargetHeatingCoolingState.HEAT);
                         }else {
                             // this.getmodelever = Characteristic.CurrentHeatingCoolingState.OFF;
                             // this.log("received floorheater mode",url, "state is currently", Characteristic.TargetHeatingCoolingState.OFF);
                             // service.getCharacteristic(Characteristic.CurrentHeatingCoolingState).setValue(Characteristic.CurrentHeatingCoolingState.OFF);
-                            service.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.OFF);
+                            service.updateCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.OFF);
                         }
                     }
                 }.bind(this));
@@ -1184,7 +1184,7 @@ HttpAccessory.prototype =
         getBrightness : function (servicename,service,url) {
             if(service){
                 var that = this;
-                this.brightnessemitter = pollingtoevent(function(done)
+            this.brightnessemitter = pollingtoevent(function(done)
                 {
                     this.httpRequest(url, "", "GET", this.username, this.password, this.sendimmediately,
                         function(error, response, responseBody)
@@ -1202,27 +1202,27 @@ HttpAccessory.prototype =
                         }.bind(this)) // set longer polling as slider takes longer to set value
                 }.bind(this), {longpolling:true,interval:that.refresh_interval,longpollEventName:"brightnesspoll"});
 
-                this.brightnessemitter.on("brightnesspoll",
+            this.brightnessemitter.on("brightnesspoll",
                     function(data)
                     {
                         if(data){
                             var currentlevel = parseInt(data);
 
                             if(currentlevel>0){
-                                service.setCharacteristic(Characteristic.On,true);
+                                service.updateCharacteristic(Characteristic.On,true);
                                 // this.log(servicename, "received brightness",url, "level is currently", currentlevel);
-                                service.setCharacteristic(Characteristic.Brightness,currentlevel);
+                                service.updateCharacteristic(Characteristic.Brightness,currentlevel);
                                 this.getbrightnesslever = currentlevel;
                                 this.getpowerstatus = true;
                             }else {
-                                service.setCharacteristic(Characteristic.On,false);
+                                service.updateCharacteristic(Characteristic.On,false);
                                 this.getpowerstatus = false;
                             }
                         }
 
                     }.bind(this));
-            }
-        },
+                 }
+            },
 
         getFanSpeed : function (servicename,service,url) {
 
@@ -1244,9 +1244,9 @@ HttpAccessory.prototype =
                                 done(null, responseBody);
                             }
                         }.bind(this)) // set longer polling as slider takes longer to set value
-                }.bind(this), {longpolling:true,interval:that.refresh_interval,longpollEventName:"brightnesspoll"});
+                }.bind(this), {longpolling:true,interval:that.refresh_interval,longpollEventName:"fanspeedpoll"});
 
-                this.fanspeedemitter.on("brightnesspoll",
+                this.fanspeedemitter.on("fanspeedpoll",
                     function(data)
                     {
                         // console.log(data);
@@ -1270,8 +1270,14 @@ HttpAccessory.prototype =
                             this.getfanspeedlever = currentlevel;
 
                             // console.log(data)
-                            // this.log(servicename, "received fan speed",url, "level is currently", currentlevel);
-                            service.getCharacteristic(Characteristic.RotationSpeed).setValue(currentlevel);
+                            // this.log(servicename, "received fan power:",service.getCharacteristic(Characteristic.On).value);
+                            if(service.getCharacteristic(Characteristic.On).value){
+                                service.updateCharacteristic(Characteristic.RotationSpeed,currentlevel);
+                            }else {
+                                // service.updateCharacteristic(Characteristic.RotationSpeed,"0");
+                                service.updateCharacteristic(Characteristic.On,false);
+                            }
+
                         }
 
                     }.bind(this));
@@ -1307,7 +1313,7 @@ HttpAccessory.prototype =
                         if(data){
                             var currentlevel = 100 - parseInt(data);
                             // this.log(servicename, "received curtain",url, "level is currently", currentlevel);
-                            service.getCharacteristic(Characteristic.TargetPosition).updateValue(currentlevel);
+                            service.updateCharacteristic(Characteristic.TargetPosition,currentlevel);
                         }
 
                     }.bind(this));
@@ -1346,11 +1352,11 @@ HttpAccessory.prototype =
 
                         // this.log("received lock",url, "state is currently", this.getlockstatus);
                         if(data.toString().toLowerCase() == 'true'){
-                            service.getCharacteristic(Characteristic.LockCurrentState).setValue(Characteristic.LockCurrentState.UNSECURED);
-                            service.getCharacteristic(Characteristic.LockTargetState).setValue(Characteristic.LockTargetState.UNSECURED);
+                            service.updateCharacteristic(Characteristic.LockCurrentState,Characteristic.LockCurrentState.UNSECURED);
+                            service.updateCharacteristic(Characteristic.LockTargetState,Characteristic.LockTargetState.UNSECURED);
                         }else {
-                            service.getCharacteristic(Characteristic.LockCurrentState).setValue(Characteristic.LockCurrentState.SECURED);
-                            service.getCharacteristic(Characteristic.LockTargetState).setValue(Characteristic.LockTargetState.SECURED);
+                            service.updateCharacteristic(Characteristic.LockCurrentState,Characteristic.LockCurrentState.SECURED);
+                            service.updateCharacteristic(Characteristic.LockTargetState,Characteristic.LockTargetState.SECURED);
                         }
                     }
                 }.bind(this));
@@ -1397,9 +1403,9 @@ HttpAccessory.prototype =
 
                         // this.log("received Garage Door",url, "state is currently", this.getgaragedoorstatus);
                         if(data.toString().toLowerCase() == 'true'){
-                            service.getCharacteristic(Characteristic.CurrentDoorState).setValue(Characteristic.CurrentDoorState.OPEN);
+                            service.updateCharacteristic(Characteristic.CurrentDoorState,Characteristic.CurrentDoorState.OPEN);
                         }else {
-                            service.getCharacteristic(Characteristic.CurrentDoorState).setValue(Characteristic.CurrentDoorState.CLOSED);
+                            service.updateCharacteristic(Characteristic.CurrentDoorState,Characteristic.CurrentDoorState.CLOSED);
                         }
                     }
                 }.bind(this));
@@ -1442,7 +1448,7 @@ HttpAccessory.prototype =
                             var currentlevel = parseInt(data);
                             this.settemperaturelever = currentlevel;
                             // this.log(servicename, "received Target Temperature",url, "level is currently", currentlevel);
-                            service.getCharacteristic(Characteristic.TargetTemperature).setValue(currentlevel);
+                            service.updateCharacteristic(Characteristic.TargetTemperature,currentlevel);
                             // service.getCharacteristic(Characteristic.On).setValue(state);
                         }
 
@@ -1478,7 +1484,7 @@ HttpAccessory.prototype =
                             var currentlevel = parseInt(data);
                             this.gettemperaturelever = currentlevel;
                             // this.log(servicename, "received Current Temperature",url, "level is currently", currentlevel);
-                            service.getCharacteristic(Characteristic.CurrentTemperature).setValue(currentlevel);
+                            service.updateCharacteristic(Characteristic.CurrentTemperature,currentlevel);
                             // service.getCharacteristic(Characteristic.On).setValue(state);
                         }
 
@@ -1517,15 +1523,15 @@ HttpAccessory.prototype =
                         try{
                             switch (parseInt(data)) {
                                 case 1:
-                                    service.setCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.HEAT);
+                                    service.updateCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.HEAT);
                                     break;
                                 case 2:
-                                    service.setCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.COOL);
+                                    service.updateCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.COOL);
                                     break;
                                 case 3:
                                 case 0:
                                 case 7:
-                                    service.setCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.AUTO);
+                                    service.updateCharacteristic(Characteristic.TargetHeatingCoolingState, Characteristic.TargetHeatingCoolingState.AUTO);
                                     break;
 
                             }
@@ -1576,10 +1582,10 @@ HttpAccessory.prototype =
                         try{
                             if(data.toString().toLowerCase() == 'false'){
                                 that.getmodelever = 0;
-                                service.setCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.OFF);
-                                that.acfanService.setCharacteristic(Characteristic.On,false);
+                                service.updateCharacteristic(Characteristic.TargetHeatingCoolingState,Characteristic.TargetHeatingCoolingState.OFF);
+                                that.acfanService.updateCharacteristic(Characteristic.On,false);
                             }else{
-                                that.acfanService.setCharacteristic(Characteristic.On,true);
+                                that.acfanService.updateCharacteristic(Characteristic.On,true);
                             }
                         }catch (e){
 
@@ -1626,14 +1632,6 @@ HttpAccessory.prototype =
                     this.getStatus(this.serviceName,this.switchService,this.request_power_url);
                     this.switchService
                         .getCharacteristic(Characteristic.On)
-                        .on('get', function(callback){
-                            that.log("switch get status")
-                            if(that.getpowerstatus == 'true'){
-                                callback(null,true)
-                            }else {
-                                callback(null,false)
-                            }
-                        })
                         .on('set', that.setPowerState.bind(this));
 
                     return [informationService,this.switchService];
@@ -1645,17 +1643,17 @@ HttpAccessory.prototype =
                     this.getStatus(this.serviceName,this.outletService,this.request_power_url);
                     this.outletService
                         .getCharacteristic(Characteristic.On)
-                        .on('get', function(callback){
-                            that.log("Outlet get status");
-                            if(that.getpowerstatus == 'true'){
-                                callback(null,true)
-                            }else {
-                                callback(null,false)
-                            }
-
-                        })
+                        // .on('get', function(callback){
+                        //     that.log("Outlet get status");
+                        //     if(that.getpowerstatus == 'true'){
+                        //         callback(null,true)
+                        //     }else {
+                        //         callback(null,false)
+                        //     }
+                        //
+                        // })
                         .on('set', that.setPowerState.bind(this))
-                    // .setValue(this.getpowerstatus);
+                        // .setValue(this.getpowerstatus);
 
                     // that.outletService.getCharacteristic(Characteristic.On).setValue(status);
 
@@ -1669,14 +1667,14 @@ HttpAccessory.prototype =
                     this.lightService = new Service.Lightbulb(this.name);
                     this.lightService
                         .getCharacteristic(Characteristic.On)
-                        .on('get', function(callback){
-                            that.log("Light get status")
-                            if(that.getpowerstatus == 'true'){
-                                callback(null,true)
-                            }else {
-                                callback(null,false)
-                            }
-                        })
+                        // .on('get', function(callback){
+                        //     that.log("Light get status")
+                        //     if(that.getpowerstatus == 'true'){
+                        //         callback(null,true)
+                        //     }else {
+                        //         callback(null,false)
+                        //     }
+                        // })
                         .on('set', that.setPowerState.bind(this));
 
                     this.getStatus(this.serviceName,this.lightService,this.request_power_url);
@@ -1718,26 +1716,26 @@ HttpAccessory.prototype =
                     this.doorService = new Service.Door(this.name);
                     this.doorService
                         .getCharacteristic(Characteristic.CurrentPosition)
-                        .on('get', function(callback) {
-                            if(that.getpowerstatus == 'true'){
-                                callback(null,true)
-                            }else {
-                                callback(null,false)
-                            }
-                        });
+                        // .on('get', function(callback) {
+                        //     if(that.getpowerstatus == 'true'){
+                        //         callback(null,true)
+                        //     }else {
+                        //         callback(null,false)
+                        //     }
+                        // });
 
                     this.doorService
                         .getCharacteristic(Characteristic.TargetPosition)
-                        .on('get', function(callback) {
-                            callback(null,that.getpowerstatus)
-                        })
+                        // .on('get', function(callback) {
+                        //     callback(null,that.getpowerstatus)
+                        // })
                         .on('set', that.setPowerState.bind(this));
 
                     this.doorService
                         .getCharacteristic(Characteristic.PositionState)
-                        .on('get', function(callback) {
-                            callback(null,2)
-                        });
+                        // .on('get', function(callback) {
+                        //     callback(null,2)
+                        // });
 
                     return [informationService, this.doorService];
                     break;
@@ -1748,26 +1746,26 @@ HttpAccessory.prototype =
                     this.windowService = new Service.Window(this.name);
                     this.windowService
                         .getCharacteristic(Characteristic.CurrentPosition)
-                        .on('get', function(callback) {
-                            if(that.getpowerstatus == 'true'){
-                                callback(null,true)
-                            }else {
-                                callback(null,false)
-                            }
-                        });
+                        // .on('get', function(callback) {
+                        //     if(that.getpowerstatus == 'true'){
+                        //         callback(null,true)
+                        //     }else {
+                        //         callback(null,false)
+                        //     }
+                        // });
 
                     this.windowService
                         .getCharacteristic(Characteristic.TargetPosition)
-                        .on('get', function(callback) {
-                            callback(null,that.getpowerstatus)
-                        })
+                        // .on('get', function(callback) {
+                        //     callback(null,that.getpowerstatus)
+                        // })
                         .on('set', that.setPowerState.bind(this));
 
                     this.windowService
                         .getCharacteristic(Characteristic.PositionState)
-                        .on('get', function(callback) {
-                            callback(null,2)
-                        });
+                        // .on('get', function(callback) {
+                        //     callback(null,2)
+                        // });
 
                     return [informationService, this.windowService];
                     break;
@@ -1778,8 +1776,8 @@ HttpAccessory.prototype =
                     this.garageDoorService = new Service.GarageDoorOpener(this.name);
                     this.garageDoorService
                         .getCharacteristic(Characteristic.CurrentDoorState)
-                        .on('get', function(callback) {
-                            callback(null,that.getgaragedoorstatus.toString().toLowerCase() !='true'?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN)});
+                        // .on('get', function(callback) {
+                        //     callback(null,that.getgaragedoorstatus.toString().toLowerCase() !='true'?Characteristic.CurrentDoorState.CLOSED:Characteristic.CurrentDoorState.OPEN)});
 
                     this.garageDoorService
                         .getCharacteristic(Characteristic.TargetDoorState)
@@ -1787,9 +1785,9 @@ HttpAccessory.prototype =
 
                     this.garageDoorService
                         .getCharacteristic(Characteristic.ObstructionDetected)
-                        .on('get', function(callback) {
-                            callback(null,false)
-                        });
+                        // .on('get', function(callback) {
+                        //     callback(null,false)
+                        // });
                     this.getGarageDoorStatus(this.serviceName,this.garageDoorService,this.request_garagedoor_url);
                     return [informationService, this.garageDoorService];
                     break;
@@ -1800,9 +1798,9 @@ HttpAccessory.prototype =
                     this.lockService = new Service.LockMechanism(this.name);
                     this.lockService
                         .getCharacteristic(Characteristic.LockCurrentState)
-                        .on('get', function(callback) {
-                            callback(null,that.getlockstatus.toString().toLowerCase() !='true'?Characteristic.LockCurrentState.SECURED:Characteristic.LockCurrentState.UNSECURED)
-                        });
+                        // .on('get', function(callback) {
+                        //     callback(null,that.getlockstatus.toString().toLowerCase() !='true'?Characteristic.LockCurrentState.SECURED:Characteristic.LockCurrentState.UNSECURED)
+                        // });
 
 
                     this.lockService
@@ -1864,24 +1862,24 @@ HttpAccessory.prototype =
                     this.fanService = new Service.Fan(this.name);
                     this.fanService
                         .getCharacteristic(Characteristic.On)
-                        .on('get', function(callback) {
-                            if(that.getpowerstatus == 'true'){
-                                callback(null,true)
-                            }else {
-                                callback(null,false)
-                            }
-                        })
+                        // .on('get', function(callback) {
+                        //     if(that.getpowerstatus == 'true'){
+                        //         callback(null,true)
+                        //     }else {
+                        //         callback(null,false)
+                        //     }
+                        // })
                         .on('set', that.setPowerState.bind(this));
 
                     this.fanService
                         .addCharacteristic(new Characteristic.RotationSpeed())
-                        .on('get', function(callback) {
-                            callback(null,that.getfanspeedlever)
-                        })
+                        // .on('get', function(callback) {
+                        //     callback(null,that.getfanspeedlever)
+                        // })
                         .on('set', that.setFanSpeed.bind(this))
                         .setProps({
-                            minStep:25
-                        });
+                                minStep:25
+                            });
 
                     this.getStatus(this.serviceName,this.fanService,this.request_power_url);
                     this.getFanSpeed(this.serviceName,this.fanService,this.request_fanspeed_url)
@@ -1916,40 +1914,40 @@ HttpAccessory.prototype =
 
                     this.acService
                         .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
-                        .on('get', function(callback) {
-                            that.log("Thermostat get current state: "+that.getmodelever);
-                            callback(null,that.getmodelever)
-                        });
+                        // .on('get', function(callback) {
+                        //     that.log("Thermostat get current state: "+that.getmodelever);
+                        //     callback(null,that.getmodelever)
+                        // });
 
                     this.acService
                         .getCharacteristic(Characteristic.TargetHeatingCoolingState)
-                        .on('get', function(callback) {
-                            that.log("Thermostat get target state: "+that.setmodelever);
-                            callback(null,that.setmodelever)
-                        })
+                        // .on('get', function(callback) {
+                        //     that.log("Thermostat get target state: "+that.setmodelever);
+                        //     callback(null,that.setmodelever)
+                        // })
                         .on('set', this.setThermostatTargetHeatingCoolingState.bind(this));
 
                     this.acService
                         .getCharacteristic(Characteristic.CurrentTemperature)
-                        .on('get', function(callback) {
-                            that.log("Thermostat get current temp: "+that.gettemperaturelever);
-                            callback(null,that.gettemperaturelever)
-                        });
+                        // .on('get', function(callback) {
+                        //     that.log("Thermostat get current temp: "+that.gettemperaturelever);
+                        //     callback(null,that.gettemperaturelever)
+                        // });
 
                     this.acService
                         .getCharacteristic(Characteristic.TargetTemperature)
-                        .on('get', function(callback)
-                        {
-                            that.log("Thermostat get current temp: "+that.settemperaturelever);
-                            callback(null,that.settemperaturelever)
-                        })
+                        // .on('get', function(callback)
+                        // {
+                        //     that.log("Thermostat get current temp: "+that.settemperaturelever);
+                        //     callback(null,that.settemperaturelever)
+                        // })
                         .on('set', that.setThermostatTargetTemp.bind(this));
 
                     this.acService
                         .getCharacteristic(Characteristic.TemperatureDisplayUnits)
-                        .on('get', function(callback) {
-                            callback(null,true)
-                        })
+                        // .on('get', function(callback) {
+                        //     callback(null,true)
+                        // })
                         .on('set', function(state,callback) {
                             that.thermDisplayUnits = true;
                             callback();
@@ -1958,13 +1956,13 @@ HttpAccessory.prototype =
                     this.acfanService = new Service.Fan(this.name);
                     this.acfanService
                         .getCharacteristic(Characteristic.On)
-                        .on('get', function(callback) {
-                            if(that.getpowerstatus == 'true'){
-                                callback(null,true)
-                            }else {
-                                callback(null,false)
-                            }
-                        })
+                        // .on('get', function(callback) {
+                        //     if(that.getpowerstatus == 'true'){
+                        //         callback(null,true)
+                        //     }else {
+                        //         callback(null,false)
+                        //     }
+                        // })
                         .on('set', that.setPowerState.bind(this));
                     this.acfanService
                         .addCharacteristic(new Characteristic.RotationSpeed())
@@ -1989,39 +1987,39 @@ HttpAccessory.prototype =
                     this.floorHeaterService = new Service.Thermostat(this.name);
                     this.floorHeaterService
                         .getCharacteristic(Characteristic.CurrentHeatingCoolingState)
-                        .on('get', function(callback) {
-                            that.log("Thermostat get current state: 2");
-                            callback(null,that.getmodelever)
-                        });
+                        // .on('get', function(callback) {
+                        //     that.log("Thermostat get current state: 2");
+                        //     callback(null,that.getmodelever)
+                        // });
 
                     this.floorHeaterService
                         .getCharacteristic(Characteristic.TargetHeatingCoolingState)
-                        .on('get', function(callback) {
-                            that.log("Thermostat get current state: 2");
-                            callback(null,that.getmodelever)
-                        })
+                        // .on('get', function(callback) {
+                        //     that.log("Thermostat get current state: 2");
+                        //     callback(null,that.getmodelever)
+                        // })
                         .on('set', that.setFloorHeaterStatus.bind(this));
 
                     this.floorHeaterService
                         .getCharacteristic(Characteristic.CurrentTemperature)
-                        .on('get', function(callback) {
-                            that.log("FloorHeater get current temp: "+that.gettemperaturelever);
-                            callback(null,that.gettemperaturelever)
-                        });
+                        // .on('get', function(callback) {
+                        //     that.log("FloorHeater get current temp: "+that.gettemperaturelever);
+                        //     callback(null,that.gettemperaturelever)
+                        // });
 
                     this.floorHeaterService
                         .getCharacteristic(Characteristic.TargetTemperature)
-                        .on('get', function(callback) {
-                            that.log("FloorHeater get target temp "+that.settemperaturelever);
-                            callback(null,that.settemperaturelever);
-                        })
+                        // .on('get', function(callback) {
+                        //     that.log("FloorHeater get target temp "+that.settemperaturelever);
+                        //     callback(null,that.settemperaturelever);
+                        // })
                         .on('set', that.setThermostatTargetTemp.bind(this));
 
                     this.floorHeaterService
                         .getCharacteristic(Characteristic.TemperatureDisplayUnits)
-                        .on('get', function(callback) {
-                            callback(null,true)
-                        })
+                        // .on('get', function(callback) {
+                        //     callback(null,true)
+                        // })
                         .on('set', function(state,callback) {
                             that.thermDisplayUnits = true;
                             callback();
@@ -2039,15 +2037,15 @@ HttpAccessory.prototype =
                     this.curtainService = new Service.WindowCovering(this.name);
                     this.curtainService
                         .getCharacteristic(Characteristic.CurrentPosition)
-                        .on('get', function(callback) {
-                            callback(null,that.getcurtainlever)
-                        });
+                        // .on('get', function(callback) {
+                        //     callback(null,that.getcurtainlever)
+                        // });
 
                     this.curtainService
                         .getCharacteristic(Characteristic.TargetPosition)
-                        .on('get', function(callback) {
-                            callback(null,that.getcurtainlever)
-                        })
+                        // .on('get', function(callback) {
+                        //     callback(null,that.setcurtainlever)
+                        // })
                         .on('set', this.setCurtainState.bind(this));
 
                     this.curtainService
