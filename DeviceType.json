@@ -1,10 +1,10 @@
 {
   "Curtain": {
-    "switchon": 0,
-    "switchoff": 1,
+    "switchon": 2,
+    "switchoff": 3,
     "switchstop": [
-      0,
-      1
+      2,
+      3
     ],
     "position":4
   },
